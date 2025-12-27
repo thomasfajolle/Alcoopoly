@@ -19,6 +19,7 @@ data class GameState(
     val chanceCardsStack: MutableList<Card> = mutableListOf(),
     val miniGameCardsStack: MutableList<Card> = mutableListOf(),
     val currentCard: Card? = null,
+    val isRolling: Boolean = false,     // Est-ce que les dés roulent ?
 
     // État du tour courant
     val currentPlayerIndex: Int = 0,

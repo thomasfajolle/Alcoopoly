@@ -15,6 +15,9 @@ import kotlin.random.Random
 import com.example.alcoopoly.data.CardData
 import com.example.alcoopoly.data.enums.CardType
 import com.example.alcoopoly.model.Card
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class GameViewModel : ViewModel() {
 
@@ -92,18 +95,31 @@ class GameViewModel : ViewModel() {
     fun onRollDice() {
         if (_uiState.value.turnState != TurnState.ROLL_DICE) return
 
-        val d1 = Random.nextInt(1, 7)
-        val d2 = Random.nextInt(1, 7)
-        val total = d1 + d2
-        val isDouble = d1 == d2
-
-        _uiState.update { it.copy(
-            diceResult = total,
-            isDoubles = isDouble,
-            turnState = TurnState.MOVE_PLAYER
-        )}
-
-        movePlayer(total)
+        viewModelScope.launch {
+            // 1. On dit que ça roule
+            _uiState.update { it.copy(isRolling = true) }
+            // 2. Animation : On change les valeurs aléatoirement 10 fois très vite
+            repeat(10) {
+                _uiState.update { it.copy(
+                    diceResult = Random.nextInt(2, 13) // Entre 2 et 12
+                )}
+                delay(80) // Petite pause de 80ms
+            }
+            // 3. VRAI LANCER FINAL
+            val d1 = Random.nextInt(1, 7)
+            val d2 = Random.nextInt(1, 7)
+            val total = d1 + d2
+            val isDouble = d1 == d2
+            _uiState.update { it.copy(
+                isRolling = false, // Fini de rouler
+                diceResult = total,
+                isDoubles = isDouble,
+                turnState = TurnState.MOVE_PLAYER
+            )}
+            // 4. On déplace le joueur (après une petite seconde pour lire le résultat)
+            delay(1000)
+            movePlayer(total)
+        }
     }
 
     // --- GESTION PRISON (BAR'BAN) ---
@@ -427,65 +443,51 @@ class GameViewModel : ViewModel() {
     // --- LOGIQUE D'ACHAT SPÉCIFIQUE (1 DÉ) ---
     fun onRollForPurchase() {
         val state = _uiState.value
-        // Si c'est déjà un succès, on ne relance pas, on quitte (sécurité pour le bouton)
-        if (state.purchaseResult == "SUCCESS") {
-            onSkipBuy()
-            return
-        }
+        if (state.purchaseResult == "SUCCESS" || state.purchaseAttempts >= 2) return
 
-        if (state.purchaseAttempts >= 2) return
+        viewModelScope.launch {
+            // Animation sur la variable lastPurchaseRoll pour l'affichage
+            repeat(10) {
+                _uiState.update { it.copy(lastPurchaseRoll = Random.nextInt(1, 7)) }
+                delay(80)
+            }
 
-        // 1. Lancer 1 dé
-        val roll = Random.nextInt(1, 7)
-        val success = roll >= state.purchaseTarget
-        val newAttempts = state.purchaseAttempts + 1
+            // Vrai calcul
+            val roll = Random.nextInt(1, 7)
+            val success = roll >= state.purchaseTarget
+            val newAttempts = state.purchaseAttempts + 1
 
-        // 2. Le joueur boit TOUJOURS le dé
-        val updatedPlayers = state.players.toMutableList()
-        val me = updatedPlayers[state.currentPlayerIndex]
-        updatedPlayers[state.currentPlayerIndex] = me.copy(drinksTaken = me.drinksTaken + roll)
+            // On met à jour les gorgées bues tout de suite
+            val updatedPlayers = state.players.toMutableList()
+            val me = updatedPlayers[state.currentPlayerIndex]
+            updatedPlayers[state.currentPlayerIndex] = me.copy(drinksTaken = me.drinksTaken + roll)
 
-        if (success) {
-            // --- SUCCÈS ---
-            val currentPos = state.currentPlayer.position
-            val currentCase = state.board[currentPos]
-            val newCase = currentCase.copy(ownerId = me.id)
+            // Logique de succès/échec
+            if (success) {
+                val currentPos = state.currentPlayer.position
+                val currentCase = state.board[currentPos]
+                val newCase = currentCase.copy(ownerId = me.id)
+                val newBoard = state.board.toMutableList()
+                newBoard[currentPos] = newCase
+                updatedPlayers[state.currentPlayerIndex] = updatedPlayers[state.currentPlayerIndex].copy(ownedCases = me.ownedCases + currentCase.id)
 
-            val newBoard = state.board.toMutableList()
-            newBoard[currentPos] = newCase
-
-            updatedPlayers[state.currentPlayerIndex] = updatedPlayers[state.currentPlayerIndex].copy(
-                ownedCases = me.ownedCases + currentCase.id
-            )
-
-            _uiState.update { it.copy(
-                board = newBoard,
-                players = updatedPlayers,
-                lastPurchaseRoll = roll,
-                purchaseAttempts = newAttempts,
-                purchaseResult = "SUCCESS",
-                // IMPORTANT : On reste dans l'état ACTION pour afficher le résultat "Bravo"
-                turnState = TurnState.PROPERTY_BUY_ACTION
-            )}
-        } else {
-            // --- ÉCHEC ---
-            if (newAttempts >= 2) {
-                // Perdu définitivement pour ce tour
                 _uiState.update { it.copy(
+                    board = newBoard,
                     players = updatedPlayers,
                     lastPurchaseRoll = roll,
                     purchaseAttempts = newAttempts,
-                    purchaseResult = "FAILED_FINAL",
-                    // IMPORTANT : On reste sur l'écran d'action pour montrer le résultat
+                    purchaseResult = "SUCCESS",
                     turnState = TurnState.PROPERTY_BUY_ACTION
                 )}
             } else {
-                // Peut retenter
+                val resultState = if (newAttempts >= 2) "FAILED_FINAL" else "FAILED_RETRY"
                 _uiState.update { it.copy(
                     players = updatedPlayers,
                     lastPurchaseRoll = roll,
                     purchaseAttempts = newAttempts,
-                    purchaseResult = "FAILED_RETRY"
+                    purchaseResult = resultState,
+                    // Si échec final, on reste sur l'écran pour montrer le résultat, sinon on update juste l'état
+                    turnState = TurnState.PROPERTY_BUY_ACTION
                 )}
             }
         }

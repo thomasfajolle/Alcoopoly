@@ -3,6 +3,10 @@ package com.example.alcoopoly.ui.game
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -12,10 +16,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.alcoopoly.data.enums.CardType
+import com.example.alcoopoly.model.Card
+import com.example.alcoopoly.model.game.GameState
 import com.example.alcoopoly.model.game.TurnState
 import com.example.alcoopoly.ui.game.components.BoardListView
-import com.example.alcoopoly.model.Card
-import com.example.alcoopoly.data.enums.CardType
+import com.example.alcoopoly.ui.game.tabs.CardsListScreen
+import com.example.alcoopoly.ui.game.tabs.StatsScreen
+
+// Enumération pour gérer les 3 onglets
+enum class GameTab { BOARD, STATS, CARDS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -23,10 +33,14 @@ fun GameScreen(
     playerNames: List<String>,
     viewModel: GameViewModel = viewModel()
 ) {
+    // 1. Initialisation de la partie
     LaunchedEffect(Unit) {
         viewModel.startNewGame(playerNames)
     }
+
+    // 2. Récupération des états
     val gameState by viewModel.uiState.collectAsState()
+    var currentTab by remember { mutableStateOf(GameTab.BOARD) }
 
     Scaffold(
         topBar = {
@@ -37,145 +51,198 @@ fun GameScreen(
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             )
-        }
-    ) { paddingValues ->
-        Column(
-            modifier = Modifier
-                .padding(paddingValues)
-                .fillMaxSize()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-
-            // --- INFO JOUEUR ---
-            Card(
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Tour actuel :", style = MaterialTheme.typography.labelSmall)
-                        Text(
-                            text = gameState.currentPlayer.name,
-                            style = MaterialTheme.typography.titleLarge,
-                            color = Color(gameState.currentPlayer.color.toInt())
-                        )
-                    }
-                    if (gameState.diceResult > 0) {
-                        Box(
-                            modifier = Modifier
-                                .background(Color.White, RoundedCornerShape(8.dp))
-                                .padding(8.dp)
-                        ) {
-                            Text("🎲 ${gameState.diceResult}", style = MaterialTheme.typography.titleMedium, color = Color.Black)
-                        }
-                    }
-                }
-            }
-
-            // --- PLATEAU ---
-            Text(
-                text = "Plateau de jeu",
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.align(Alignment.Start).padding(bottom = 8.dp)
-            )
-
-            BoardListView(
-                board = gameState.board,
-                players = gameState.players,
-                currentPlayerId = gameState.currentPlayer.id,
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // --- BOUTON PRINCIPAL ---
-            Button(
-                onClick = {
-                    when (gameState.turnState) {
-                        TurnState.ROLL_DICE -> viewModel.onRollDice()
-                        TurnState.PRISON_TURN -> viewModel.onRollPrison() // <--- AJOUTE ÇA
-                        TurnState.POST_CASE_ACTIONS -> viewModel.onEndTurn()
-                        else -> { }
-                    }
-                },
-                // Active le bouton si on est en Prison
-                enabled = gameState.turnState == TurnState.ROLL_DICE ||
-                        gameState.turnState == TurnState.POST_CASE_ACTIONS ||
-                        gameState.turnState == TurnState.PRISON_TURN,
-
-                modifier = Modifier.fillMaxWidth().height(56.dp)
-            ) {
-                Text(
-                    text = when (gameState.turnState) {
-                        TurnState.ROLL_DICE -> "🎲 LANCER LES DÉS"
-                        TurnState.PRISON_TURN -> "⛓️ TENTER L'ÉVASION (8+)" // <--- TEXTE SPÉCIFIQUE
-                        TurnState.MOVE_PLAYER -> "Déplacement..."
-                        TurnState.RESOLVE_CASE -> "Résolution..."
-                        TurnState.POST_CASE_ACTIONS -> "FIN DU TOUR"
-                        else -> "..."
-                    },
-                    style = MaterialTheme.typography.titleMedium
+        },
+        bottomBar = {
+            // 3. Barre de Navigation en bas
+            NavigationBar {
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Home, contentDescription = null) },
+                    label = { Text("Plateau") },
+                    selected = currentTab == GameTab.BOARD,
+                    onClick = { currentTab = GameTab.BOARD }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.Info, contentDescription = null) },
+                    label = { Text("Classement") },
+                    selected = currentTab == GameTab.STATS,
+                    onClick = { currentTab = GameTab.STATS }
+                )
+                NavigationBarItem(
+                    icon = { Icon(Icons.Default.List, contentDescription = null) },
+                    label = { Text("Cartes") },
+                    selected = currentTab == GameTab.CARDS,
+                    onClick = { currentTab = GameTab.CARDS }
                 )
             }
         }
+    ) { paddingValues ->
+        Box(modifier = Modifier.padding(paddingValues)) {
 
-        // --- DIALOGUE D'ACHAT (LOGIQUE DÉ) ---
-        if (gameState.turnState == TurnState.PROPERTY_BUY_ACTION) {
-            val currentCase = gameState.board[gameState.currentPlayer.position]
+            // 4. Contenu principal qui change selon l'onglet
+            when (currentTab) {
+                GameTab.BOARD -> BoardTabContent(gameState, viewModel)
+                GameTab.STATS -> StatsScreen(gameState.players)
+                GameTab.CARDS -> CardsListScreen()
+            }
 
-            BuyPropertyDialog(
-                caseName = currentCase.name,
-                targetScore = gameState.purchaseTarget,
-                attempts = gameState.purchaseAttempts,
-                lastRoll = gameState.lastPurchaseRoll,
-                resultState = gameState.purchaseResult,
-                onRoll = { viewModel.onRollForPurchase() },
-                onPass = { viewModel.onSkipBuy() }
-            )
+            // 5. LES DIALOGUES (S'affichent par-dessus tout, peu importe l'onglet)
+
+            // --- DIALOGUE D'ACHAT ---
+            if (gameState.turnState == TurnState.PROPERTY_BUY_ACTION) {
+                val currentCase = gameState.board[gameState.currentPlayer.position]
+                BuyPropertyDialog(
+                    caseName = currentCase.name,
+                    targetScore = gameState.purchaseTarget,
+                    attempts = gameState.purchaseAttempts,
+                    lastRoll = gameState.lastPurchaseRoll,
+                    resultState = gameState.purchaseResult,
+                    onRoll = { viewModel.onRollForPurchase() },
+                    onPass = { viewModel.onSkipBuy() }
+                )
+            }
+
+            // --- DIALOGUE LOYER / DISTRIBUTION ---
+            if (gameState.turnState == TurnState.RENT_PAYMENT_ACTION) {
+                val currentCase = gameState.board[gameState.currentPlayer.position]
+                val owner = gameState.players.find { it.id == currentCase.ownerId }
+                val isMine = currentCase.ownerId == gameState.currentPlayer.id
+                RentDialog(
+                    caseName = currentCase.name,
+                    ownerName = owner?.name ?: "Inconnu",
+                    rentAmount = gameState.pendingRent,
+                    isMyProperty = isMine,
+                    onConfirm = { viewModel.onConfirmRent() }
+                )
+            }
+
+            // --- DIALOGUE ÉVÉNEMENT SPÉCIAL ---
+            if (gameState.turnState == TurnState.SPECIAL_EVENT_ACTION) {
+                SpecialEventDialog(
+                    title = gameState.eventTitle,
+                    message = gameState.eventMessage,
+                    onDismiss = { viewModel.onDismissSpecialEvent() }
+                )
+            }
+
+            // --- DIALOGUE CARTE ---
+            if (gameState.turnState == TurnState.CARD_DRAW_ACTION && gameState.currentCard != null) {
+                CardDisplayDialog(
+                    card = gameState.currentCard!!,
+                    onDismiss = { viewModel.onDismissCard() }
+                )
+            }
         }
-        // ... Bloc d'achat existant ...
+    }
+}
 
-        // --- DIALOGUE LOYER / DISTRIBUTION ---
-        if (gameState.turnState == TurnState.RENT_PAYMENT_ACTION) {
-            val currentCase = gameState.board[gameState.currentPlayer.position]
-            // On cherche le nom du propriétaire
-            val owner = gameState.players.find { it.id == currentCase.ownerId }
-            val isMine = currentCase.ownerId == gameState.currentPlayer.id
+/**
+ * Cette fonction contient tout ce qui concerne le Plateau de jeu pur.
+ * (C'est ce qui était directement dans le Scaffold avant).
+ */
+@Composable
+fun BoardTabContent(
+    gameState: GameState,
+    viewModel: GameViewModel
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
 
-            RentDialog(
-                caseName = currentCase.name,
-                ownerName = owner?.name ?: "Inconnu",
-                rentAmount = gameState.pendingRent,
-                isMyProperty = isMine,
-                onConfirm = { viewModel.onConfirmRent() }
-            )
+        // --- INFO JOUEUR ---
+        Card(
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Tour actuel :", style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        text = gameState.currentPlayer.name,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Color(gameState.currentPlayer.color.toInt())
+                    )
+                }
+                // Affiche le dé si on a un résultat OU si c'est en train de rouler
+                if (gameState.diceResult > 0 || gameState.isRolling) {
+                    Box(
+                        modifier = Modifier
+                            .background(
+                                color = if (gameState.isRolling) Color(0xFFFFD700) else Color.White, // Jaune quand ça roule
+                                shape = RoundedCornerShape(8.dp)
+                            )
+                            .padding(8.dp)
+                    ) {
+                        Text(
+                            text = "🎲 ${gameState.diceResult}",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = Color.Black
+                        )
+                    }
+                }
+            }
         }
-        // --- DIALOGUE ÉVÉNEMENT SPÉCIAL (Bassine, Prison, Départ...) ---
-        if (gameState.turnState == TurnState.SPECIAL_EVENT_ACTION) {
-            SpecialEventDialog(
-                title = gameState.eventTitle,
-                message = gameState.eventMessage,
-                onDismiss = { viewModel.onDismissSpecialEvent() }
-            )
-        }
-        // --- DIALOGUE CARTE ---
-        if (gameState.turnState == TurnState.CARD_DRAW_ACTION && gameState.currentCard != null) {
-            CardDisplayDialog(
-                card = gameState.currentCard!!,
-                onDismiss = { viewModel.onDismissCard() }
+
+        // --- PLATEAU ---
+        Text(
+            text = "Plateau de jeu",
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.align(Alignment.Start).padding(bottom = 8.dp)
+        )
+
+        BoardListView(
+            board = gameState.board,
+            players = gameState.players,
+            currentPlayerId = gameState.currentPlayer.id,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // --- BOUTON PRINCIPAL ---
+        Button(
+            onClick = {
+                when (gameState.turnState) {
+                    TurnState.ROLL_DICE -> viewModel.onRollDice()
+                    TurnState.PRISON_TURN -> viewModel.onRollPrison()
+                    TurnState.POST_CASE_ACTIONS -> viewModel.onEndTurn()
+                    else -> { }
+                }
+            },
+            enabled = !gameState.isRolling && ( // AJOUT DE !gameState.isRolling
+                    gameState.turnState == TurnState.ROLL_DICE ||
+                            gameState.turnState == TurnState.POST_CASE_ACTIONS ||
+                            gameState.turnState == TurnState.PRISON_TURN),
+
+            modifier = Modifier.fillMaxWidth().height(56.dp)
+        ) {
+            Text(
+                text = when (gameState.turnState) {
+                    TurnState.ROLL_DICE -> "🎲 LANCER LES DÉS"
+                    TurnState.PRISON_TURN -> "⛓️ TENTER L'ÉVASION (8+)"
+                    TurnState.MOVE_PLAYER -> "Déplacement..."
+                    TurnState.RESOLVE_CASE -> "Résolution..."
+                    TurnState.POST_CASE_ACTIONS -> "FIN DU TOUR"
+                    else -> "..."
+                },
+                style = MaterialTheme.typography.titleMedium
             )
         }
     }
 }
 
-// COMPOSANT FENÊTRE D'ACHAT
+// ==========================================
+//          COMPOSANTS DE DIALOGUE
+// ==========================================
+
 @Composable
 fun BuyPropertyDialog(
     caseName: String,
@@ -202,7 +269,7 @@ fun BuyPropertyDialog(
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 if (isFinished) {
-                    // --- RÉSULTAT FINAL (Succès OU Échec) ---
+                    // --- RÉSULTAT FINAL ---
                     Text("Tu as fait :", style = MaterialTheme.typography.bodyMedium)
                     Text("$lastRoll", style = MaterialTheme.typography.displayMedium,
                         color = if(isSuccess) Color(0xFF4CAF50) else Color.Red,
@@ -236,12 +303,10 @@ fun BuyPropertyDialog(
         },
         confirmButton = {
             if (isFinished) {
-                // Bouton de fin (Succès ou Échec total)
                 Button(onClick = onPass) {
                     Text(if (isSuccess) "OK, super !" else "Tant pis...")
                 }
             } else {
-                // Bouton de jeu
                 Button(onClick = onRoll) {
                     Text(if (attempts == 0) "🎲 Lancer le dé" else "🎲 Retenter")
                 }
@@ -256,6 +321,7 @@ fun BuyPropertyDialog(
         }
     )
 }
+
 @Composable
 fun RentDialog(
     caseName: String,
@@ -265,7 +331,7 @@ fun RentDialog(
     onConfirm: () -> Unit
 ) {
     AlertDialog(
-        onDismissRequest = { }, // On oblige à cliquer sur le bouton
+        onDismissRequest = { },
         title = {
             Text(if (isMyProperty) "🏠 Bienvenue chez toi !" else "💸 Paye ton loyer !")
         },
@@ -277,7 +343,7 @@ fun RentDialog(
                 if (isMyProperty) {
                     Text("Tu es le propriétaire.", style = MaterialTheme.typography.bodySmall)
                     Spacer(modifier = Modifier.height(8.dp))
-                    Text("👉 DISTRIBUE", fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50)) // Vert
+                    Text("👉 DISTRIBUE", fontWeight = FontWeight.Bold, color = Color(0xFF4CAF50))
                     Text("$rentAmount gorgées", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
                     Text("à qui tu veux !", style = MaterialTheme.typography.bodySmall)
                 } else {
@@ -295,6 +361,7 @@ fun RentDialog(
         }
     )
 }
+
 @Composable
 fun SpecialEventDialog(
     title: String,
@@ -314,18 +381,18 @@ fun SpecialEventDialog(
         }
     )
 }
+
 @Composable
 fun CardDisplayDialog(
     card: Card,
     onDismiss: () -> Unit
 ) {
-    // Couleur selon le type
     val cardColor = if (card.type == CardType.MINI_JEU) Color(0xFFCE93D8) else Color(0xFFFFCC80)
     val title = if (card.type == CardType.MINI_JEU) "🎮 MINI-JEU" else "🍀 CHANCE"
 
     AlertDialog(
         onDismissRequest = { },
-        containerColor = cardColor, // Fond coloré
+        containerColor = cardColor,
         title = {
             Text(text = title, fontWeight = FontWeight.Black, fontSize = 24.sp)
         },
@@ -339,7 +406,7 @@ fun CardDisplayDialog(
 
                 Text(
                     text = card.description,
-                    style = MaterialTheme.typography.headlineSmall, // Texte en gros
+                    style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
                     color = Color.Black
                 )
