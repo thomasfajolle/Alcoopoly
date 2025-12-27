@@ -1,35 +1,16 @@
-package com.example.alcoopoly.game
+package com.example.alcoopoly.model.game
 
-/**
- * Enum représentant les différents états possibles
- * d'un tour de jeu.
- */
 enum class TurnState {
-
-    /** Initialisation du tour */
-    START_TURN,
-
-    /** Vérification du statut du joueur (libre ou prison) */
-    CHECK_PLAYER_STATUS,
-
-    /** Gestion d'un tour en prison (bar'ban) */
-    PRISON_TURN,
-
-    /** Lancer des dés pour le déplacement (2 dés) */
-    ROLL_MOVE_DICE,
-
-    /** Déplacement du joueur sur le plateau */
-    MOVE_PLAYER,
-
-    /** Résolution de la case d'arrivée */
-    RESOLVE_CASE,
-
-    /** Tentative d'achat d'une propriété (1 dé, 2 essais max) */
-    PROPERTY_PURCHASE_ATTEMPT,
-
-    /** Actions facultatives après résolution de la case */
-    POST_CASE_ACTIONS,
-
-    /** Fin du tour, passage au joueur suivant */
-    END_TURN
+    START_TURN,           // Début du tour, reset des variables
+    CHECK_PLAYER_STATUS,  // Vérifie si le joueur est en prison ou libre
+    PRISON_TURN,          // Tour spécifique si en prison
+    ROLL_DICE,            // Attente du lancer de dés
+    MOVE_PLAYER,          // Animation/Déplacement du pion
+    RESOLVE_CASE,         // Application des règles de la case (Loyer, Carte, etc.)
+    PROPERTY_BUY_ACTION,  // (Optionnel) Le joueur peut acheter la case
+    RENT_PAYMENT_ACTION, // Paiement du loyer / Distribution
+    SPECIAL_EVENT_ACTION, // Affiche les messages Bassine, Prison, etc.
+    CARD_DRAW_ACTION,      // Affichage d'une carte
+    POST_CASE_ACTIONS,    // Fin d'action, attente de fin de tour
+    END_TURN              // Changement de joueur
 }

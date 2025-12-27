@@ -1,16 +1,22 @@
-package com.example.alcoopoly.data.model
+package com.example.alcoopoly.model
 
 data class Player(
     val id: Int,
     val name: String,
-    val color: Int,
+    val color: Long,
 
-    var position: Int = 1,
-    var inPrison: Boolean = false,
-    var prisonTurns: Int = 0,
+    // État du pion
+    val position: Int = 0,
+    val inPrison: Boolean = false,
+    val prisonTurns: Int = 0,
 
-    val ownedCases: MutableList<Int> = mutableListOf(),
+    // --- NOUVEAUX CHAMPS AJOUTÉS POUR CORRIGER LES ERREURS ---
 
-    var drinksTaken: Int = 0,
-    var drinksGiven: Int = 0
+    // Liste des IDs des cases achetées par le joueur
+    val ownedCases: List<Int> = emptyList(),
+
+    // Stats de jeu
+    val drinksTaken: Int = 0, // Gorgées bues
+    val drinksGiven: Int = 0, // Gorgées données (loyers perçus)
+    val money: Int = 0        // (Optionnel pour plus tard)
 )
