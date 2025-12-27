@@ -21,25 +21,45 @@ class GameViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(GameState())
     val uiState: StateFlow<GameState> = _uiState.asStateFlow()
 
-    init {
-        initializeGame()
-    }
+    // Supprime le "init" du début de la classe !
 
-    private fun initializeGame() {
-        // Initialisation avec des couleurs visibles (FF devant)
-        val testPlayers = listOf(
-            Player(id = 1, name = "🔴 P1: Paul", color = 0xFFFF0000),
-            Player(id = 2, name = "🟢 P2: Jacques", color = 0xFF00AA00)
+    /**
+     * Cette fonction est appelée par l'écran de jeu au démarrage
+     * pour créer les joueurs basés sur ce qu'on a saisi à l'accueil.
+     */
+    fun startNewGame(playerNames: List<String>) {
+        // Si la partie est déjà lancée (joueurs existent), on ne fait rien pour ne pas reset
+        if (_uiState.value.players.isNotEmpty()) return
+
+        // On génère les joueurs avec des couleurs automatiques
+        val colors = listOf(
+            0xFFFF5252, // Rouge
+            0xFF448AFF, // Bleu
+            0xFF69F0AE, // Vert
+            0xFFFFD740, // Jaune
+            0xFFE040FB, // Violet
+            0xFFFF6E40  // Orange
         )
 
+        val newPlayers = playerNames.mapIndexed { index, name ->
+            val color = colors.getOrElse(index) { 0xFF9E9E9E } // Couleur grise si plus de 6 joueurs
+            Player(
+                id = index + 1,
+                name = name,
+                color = color
+            )
+        }
+
         _uiState.update { it.copy(
-            players = testPlayers,
+            players = newPlayers,
             board = BoardData.defaultBoard,
             turnState = TurnState.START_TURN,
-            // CHARGEMENT DES CARTES (On mélange avec shuffled())
             chanceCardsStack = CardData.initialChanceCards.toMutableList().apply { shuffle() },
-            miniGameCardsStack = CardData.initialMiniGameCards.toMutableList().apply { shuffle() }
+            miniGameCardsStack = CardData.initialMiniGameCards.toMutableList().apply { shuffle() },
+            turnNumber = 1,
+            currentPlayerIndex = 0
         )}
+
         advanceGameLoop()
     }
 
@@ -279,8 +299,11 @@ class GameViewModel : ViewModel() {
                 )
             }
             CaseType.SIMPLE_VISITE -> {
-                // Rien à faire
-                _uiState.update { it.copy(turnState = TurnState.POST_CASE_ACTIONS) }
+                // on affiche un message rassurant
+                triggerSpecialEvent(
+                    title = "👮 Bar'ban (Simple Visite)",
+                    message = "Tout va bien ! Tu n'es que de passage. Tu peux narguer ceux qui sont enfermés 😜"
+                )
             }
 
             // --- CAS 5 : JARDIN D'ENFANT ---

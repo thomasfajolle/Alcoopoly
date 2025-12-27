@@ -20,8 +20,12 @@ import com.example.alcoopoly.data.enums.CardType
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GameScreen(
+    playerNames: List<String>,
     viewModel: GameViewModel = viewModel()
 ) {
+    LaunchedEffect(Unit) {
+        viewModel.startNewGame(playerNames)
+    }
     val gameState by viewModel.uiState.collectAsState()
 
     Scaffold(
