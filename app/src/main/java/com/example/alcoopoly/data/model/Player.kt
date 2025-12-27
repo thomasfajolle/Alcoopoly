@@ -4,6 +4,7 @@ data class Player(
     val id: Int,
     val name: String,
     val color: Long,
+    val avatar: String = "😊",
 
     // État du pion
     val position: Int = 0,

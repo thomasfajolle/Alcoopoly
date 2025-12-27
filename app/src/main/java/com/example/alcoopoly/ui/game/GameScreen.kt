@@ -45,7 +45,20 @@ fun GameScreen(
     Scaffold(
         topBar = {
             CenterAlignedTopAppBar(
-                title = { Text("Alcoopoly - Tour ${gameState.turnNumber}") },
+                title = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Place pour un futur logo (décommente la ligne ci-dessous quand tu auras une image)
+                        // Image(painter = painterResource(id = R.drawable.logo), contentDescription = null, modifier = Modifier.size(32.dp))
+                        // Spacer(modifier = Modifier.width(8.dp))
+
+                        Text(
+                            text = "ALCOOPOLY",
+                            style = MaterialTheme.typography.headlineMedium, // Plus gros
+                            fontWeight = FontWeight.Black, // Plus gras
+                            letterSpacing = 2.sp // Espacement des lettres style "Cinéma"
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -96,6 +109,7 @@ fun GameScreen(
                     attempts = gameState.purchaseAttempts,
                     lastRoll = gameState.lastPurchaseRoll,
                     resultState = gameState.purchaseResult,
+                    isRolling = gameState.isRolling,
                     onRoll = { viewModel.onRollForPurchase() },
                     onPass = { viewModel.onSkipBuy() }
                 )
@@ -250,6 +264,7 @@ fun BuyPropertyDialog(
     attempts: Int,
     lastRoll: Int,
     resultState: String,
+    isRolling: Boolean, // <--- Nouveau paramètre
     onRoll: () -> Unit,
     onPass: () -> Unit
 ) {
@@ -261,6 +276,7 @@ fun BuyPropertyDialog(
         onDismissRequest = { },
         title = {
             when {
+                isRolling -> Text("🎲 Lancer en cours...") // Titre neutre pendant l'anim
                 isSuccess -> Text("🎉 BRAVO ! 🎉")
                 isFinalFailure -> Text("💀 ÉCHEC FINAL 💀")
                 else -> Text("Propriété Libre ! 🎲")
@@ -268,8 +284,8 @@ fun BuyPropertyDialog(
         },
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                if (isFinished) {
-                    // --- RÉSULTAT FINAL ---
+                if (isFinished && !isRolling) {
+                    // --- RÉSULTAT FINAL (Fixe) ---
                     Text("Tu as fait :", style = MaterialTheme.typography.bodyMedium)
                     Text("$lastRoll", style = MaterialTheme.typography.displayMedium,
                         color = if(isSuccess) Color(0xFF4CAF50) else Color.Red,
@@ -285,24 +301,46 @@ fun BuyPropertyDialog(
                         Text("Tu as raté tes 2 essais... La propriété reste libre.", style = MaterialTheme.typography.bodyLarge)
                     }
                 } else {
-                    // --- EN COURS ---
+                    // --- ÉCRAN DE JEU (ou Animation) ---
                     Text("Vous êtes sur : $caseName", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("OBJECTIF : Faire $targetScore+ avec 1 dé", fontWeight = FontWeight.Bold)
-                    Text("Tentative : ${attempts + 1} / 2")
+
+                    if (!isRolling) {
+                        Text("Tentative : ${attempts + 1} / 2")
+                    }
+
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("⚠️ Tu bois le dé quoi qu'il arrive !", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
 
+                    // Affiche le dé si on a lancé ou si ça tourne
                     if (lastRoll > 0) {
                         Spacer(modifier = Modifier.height(16.dp))
-                        Text("Dernier lancer : $lastRoll 🍺", style = MaterialTheme.typography.headlineSmall, color = Color.Red)
-                        Text("Raté ! Mais tu peux retenter.", color = MaterialTheme.colorScheme.error)
+
+                        // Si ça roule : Couleur OR (neutre). Sinon : ROUGE (car on boit).
+                        val diceColor = if (isRolling) Color(0xFFFFD700) else Color.Red
+
+                        Text(
+                            text = if (isRolling) "$lastRoll" else "Résultat : $lastRoll",
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = diceColor,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        // On n'affiche le message d'échec que si l'animation est FINIE
+                        if (!isRolling && resultState == "FAILED_RETRY") {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Raté ! Mais tu peux retenter.", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             }
         },
         confirmButton = {
-            if (isFinished) {
+            if (isRolling) {
+                // Bouton désactivé pendant l'animation
+                Button(onClick = {}, enabled = false) { Text("...") }
+            } else if (isFinished) {
                 Button(onClick = onPass) {
                     Text(if (isSuccess) "OK, super !" else "Tant pis...")
                 }
@@ -313,7 +351,8 @@ fun BuyPropertyDialog(
             }
         },
         dismissButton = {
-            if (!isFinished) {
+            // On cache le bouton abandonner pendant que ça roule ou si c'est fini
+            if (!isFinished && !isRolling) {
                 OutlinedButton(onClick = onPass) {
                     Text("Laisser tomber")
                 }
@@ -321,7 +360,6 @@ fun BuyPropertyDialog(
         }
     )
 }
-
 @Composable
 fun RentDialog(
     caseName: String,

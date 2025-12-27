@@ -34,10 +34,10 @@ class MainActivity : ComponentActivity() {
                         // ÉCRAN 1 : ACCUEIL
                         composable("welcome") {
                             WelcomeScreen(
-                                onStartGame = { players ->
-                                    // Astuce : On transforme la liste ["Paul", "Pierre"] en string "Paul,Pierre"
-                                    // pour la passer dans l'URL de navigation
-                                    val namesString = players.joinToString(",")
+                                onStartGame = { playersList ->
+                                    // playersList est maintenant ["Thomas|🦁", "Paul|👽"]
+                                    // On les joint avec des virgules pour l'URL : "Thomas|🦁,Paul|👽"
+                                    val namesString = playersList.joinToString(",")
                                     navController.navigate("game/$namesString")
                                 }
                             )

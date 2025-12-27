@@ -30,26 +30,26 @@ class GameViewModel : ViewModel() {
      * Cette fonction est appelée par l'écran de jeu au démarrage
      * pour créer les joueurs basés sur ce qu'on a saisi à l'accueil.
      */
-    fun startNewGame(playerNames: List<String>) {
-        // Si la partie est déjà lancée (joueurs existent), on ne fait rien pour ne pas reset
+    fun startNewGame(playerDataList: List<String>) {
         if (_uiState.value.players.isNotEmpty()) return
 
-        // On génère les joueurs avec des couleurs automatiques
         val colors = listOf(
-            0xFFFF5252, // Rouge
-            0xFF448AFF, // Bleu
-            0xFF69F0AE, // Vert
-            0xFFFFD740, // Jaune
-            0xFFE040FB, // Violet
-            0xFFFF6E40  // Orange
+            0xFFFF5252, 0xFF448AFF, 0xFF69F0AE, 0xFFFFD740, 0xFFE040FB, 0xFFFF6E40
         )
 
-        val newPlayers = playerNames.mapIndexed { index, name ->
-            val color = colors.getOrElse(index) { 0xFF9E9E9E } // Couleur grise si plus de 6 joueurs
+        val newPlayers = playerDataList.mapIndexed { index, dataString ->
+            // On sépare le Nom et l'Avatar avec le caractère "|"
+            val parts = dataString.split("|")
+            val name = parts.getOrElse(0) { "Joueur $index" }
+            val avatar = parts.getOrElse(1) { "😊" } // Emoji par défaut si bug
+
+            val color = colors.getOrElse(index) { 0xFF9E9E9E }
+
             Player(
                 id = index + 1,
                 name = name,
-                color = color
+                color = color,
+                avatar = avatar // <--- On l'enregistre ici
             )
         }
 
@@ -65,7 +65,6 @@ class GameViewModel : ViewModel() {
 
         advanceGameLoop()
     }
-
     /**
      * Boucle principale qui fait avancer les états automatiques
      */
@@ -173,60 +172,58 @@ class GameViewModel : ViewModel() {
         }
     }
     private fun movePlayer(steps: Int) {
-        var triggerPassStart = false
+        viewModelScope.launch {
+            // 1. On sauvegarde la position de départ pour savoir si on a passé la case départ à la fin
+            val startPosition = _uiState.value.currentPlayer.position
+            var currentPosition = startPosition
 
-        _uiState.update { state ->
-            val currentPlayer = state.currentPlayer
-            val oldPosition = currentPlayer.position
-            val newPosition = (oldPosition + steps) % 40
+            // 2. BOUCLE D'ANIMATION : On avance case par case
+            repeat(steps) {
+                delay(350) // Vitesse du déplacement (350ms par case = rythme agréable)
 
-            // On vérifie si on a bouclé (passé de 39 à 2 par exemple)
-            val passedStart = newPosition < oldPosition
+                // Calcul de la case suivante (+1)
+                currentPosition = (currentPosition + 1) % 40
 
-            // On vérifie si on est tombé PILE sur le départ (Index 0)
-            val isLandingOnStart = newPosition == 0
+                // Mise à jour de l'affichage pour voir le pion bouger
+                _uiState.update { state ->
+                    val updatedPlayers = state.players.toMutableList()
+                    val me = updatedPlayers[state.currentPlayerIndex]
+                    updatedPlayers[state.currentPlayerIndex] = me.copy(position = currentPosition)
 
-            var drinksBonus = 0
-
-            var nextTurnState = TurnState.RESOLVE_CASE
-            var eventTitle = ""
-            var eventMessage = ""
-            var isResolvingStart = false
-
-            // MODIFICATION ICI :
-            // On déclenche le "+5 Passage" SEULEMENT si on a passé le départ SANS s'arrêter dessus.
-            // Si on s'arrête dessus (isLandingOnStart), on ne fait rien ici,
-            // c'est resolveCurrentCase qui gérera le "+10 Arrêt".
-            if (passedStart && !isLandingOnStart) {
-                drinksBonus = 5
-                triggerPassStart = true
-                nextTurnState = TurnState.SPECIAL_EVENT_ACTION
-                eventTitle = "🍷 Cave Départ (Passage)"
-                eventMessage = "Tu passes devant la Cave ! Distribue 5 gorgées."
-                isResolvingStart = true
+                    // On update l'état pour déclencher le scroll automatique de la liste
+                    state.copy(players = updatedPlayers)
+                }
             }
 
-            val updatedPlayers = state.players.toMutableList()
-            val me = updatedPlayers[state.currentPlayerIndex]
+            // 3. EFFET FOCUS FINAL
+            // Une fois arrivé, on attend un peu pour que le joueur voie la case "zoomer"
+            delay(800)
 
-            updatedPlayers[state.currentPlayerIndex] = me.copy(
-                position = newPosition,
-                drinksGiven = me.drinksGiven + drinksBonus
-            )
+            // 4. LOGIQUE DES RÈGLES (Une fois l'animation finie)
+            // On recalcule si on a passé le départ en comparant le début et la fin
+            val finalPosition = currentPosition
+            val passedStart = finalPosition < startPosition // Si 2 < 38, on a bouclé
+            val isLandingOnStart = finalPosition == 0
 
-            state.copy(
-                players = updatedPlayers,
-                turnState = nextTurnState,
-                eventTitle = eventTitle,
-                eventMessage = eventMessage,
-                isResolvingStartPass = isResolvingStart
-            )
-        }
+            if (passedStart && !isLandingOnStart) {
+                // --- PASSAGE DÉPART (Bonus +5) ---
+                _uiState.update { state ->
+                    val updatedPlayers = state.players.toMutableList()
+                    val me = updatedPlayers[state.currentPlayerIndex]
+                    updatedPlayers[state.currentPlayerIndex] = me.copy(drinksGiven = me.drinksGiven + 5)
 
-        // Si on n'a pas déclenché le passage (donc soit trajet normal, soit atterrissage pile sur départ),
-        // on lance la résolution tout de suite.
-        if (!triggerPassStart) {
-            resolveCurrentCase()
+                    state.copy(
+                        players = updatedPlayers,
+                        turnState = TurnState.SPECIAL_EVENT_ACTION,
+                        eventTitle = "🍷 Cave Départ (Passage)",
+                        eventMessage = "Tu passes devant la Cave ! Distribue 5 gorgées.",
+                        isResolvingStartPass = true
+                    )
+                }
+            } else {
+                // --- RÉSOLUTION NORMALE ---
+                resolveCurrentCase()
+            }
         }
     }
 
@@ -400,12 +397,82 @@ class GameViewModel : ViewModel() {
         }
     }
 
-    // Fonction pour fermer la carte
+    // Fonction appelée quand on clique sur "OK" sur une carte
     fun onDismissCard() {
+        val state = _uiState.value
+        val card = state.currentCard
+
+        // On ferme d'abord la carte visuellement
         _uiState.update { it.copy(
-            turnState = TurnState.POST_CASE_ACTIONS,
+            turnState = TurnState.POST_CASE_ACTIONS, // Par défaut, on finit le tour
             currentCard = null
         )}
+
+        // Ensuite, on applique les effets spéciaux de déplacement si besoin
+        if (card != null) {
+            applyCardEffect(card)
+        }
+    }
+
+    private fun applyCardEffect(card: Card) {
+        viewModelScope.launch {
+            // Petite pause pour que ce soit naturel après la fermeture de la fenêtre
+            delay(500)
+
+            when (card.id) {
+                // --- RETOUR CAVE DÉPART ---
+                106, 141 -> {
+                    teleportPlayer(0, "Oups... Retour à la case départ !")
+                }
+
+                // --- SOIRÉE BDE (Case 36) ---
+                105 -> {
+                    // La case 36 est à l'index 35
+                    teleportPlayer(35, "Téléportation à la Soirée BDE !")
+                }
+
+                // --- DATE ELISA (Case 38) ---
+                146 -> {
+                    // La case 38 est à l'index 37
+                    teleportPlayer(37, "Bonne chance pour ton date...")
+                }
+
+                // --- MERCREDI (Bar'bu - Case 16) ---
+                145 -> {
+                    teleportPlayer(15, "Direction le Bar'bu !")
+                }
+
+                // --- SPACE CAKE (Reculer) ---
+                // ID 143 : "Fais les deux prochains tours en reculant"
+                // C'est complexe à coder (état persistant), pour l'instant on fait reculer de 3 cases direct
+                143 -> {
+                    val currentPos = _uiState.value.currentPlayer.position
+                    val newPos = (currentPos - 3 + 40) % 40
+                    teleportPlayer(newPos, "Tu es trop défoncé... Tu recules.")
+                }
+            }
+        }
+    }
+
+    // Fonction utilitaire pour déplacer le joueur sans lancer les dés
+    private suspend fun teleportPlayer(targetIndex: Int, message: String) {
+        // 1. Mise à jour de la position
+        _uiState.update { state ->
+            val updatedPlayers = state.players.toMutableList()
+            updatedPlayers[state.currentPlayerIndex] = updatedPlayers[state.currentPlayerIndex].copy(position = targetIndex)
+            state.copy(players = updatedPlayers)
+        }
+
+        // 2. On déclenche un petit message pour expliquer ce qui se passe
+        triggerSpecialEvent(
+            title = "✨ TÉLÉPORTATION",
+            message = message
+        )
+
+        // Note : Après le clic sur "OK" de ce message, resolveCurrentCase sera appelé si besoin
+        // via la logique existante de onDismissSpecialEvent, ou on finit le tour.
+        // Ici, on a mis turnState à POST_CASE_ACTIONS dans onDismissCard,
+        // donc le triggerSpecialEvent va repasser l'état à SPECIAL_EVENT_ACTION.
     }
     // Fonction appelée quand on clique sur "OK" dans le message spécial
     fun onDismissSpecialEvent() {
@@ -443,27 +510,36 @@ class GameViewModel : ViewModel() {
     // --- LOGIQUE D'ACHAT SPÉCIFIQUE (1 DÉ) ---
     fun onRollForPurchase() {
         val state = _uiState.value
-        if (state.purchaseResult == "SUCCESS" || state.purchaseAttempts >= 2) return
+        // Sécurités
+        if (state.purchaseResult == "SUCCESS" || state.purchaseAttempts >= 2 || state.isRolling) return
 
         viewModelScope.launch {
-            // Animation sur la variable lastPurchaseRoll pour l'affichage
-            repeat(10) {
+            // 1. DÉBUT ANIMATION
+            // On active le mode "Roulement" et on efface le résultat précédent pour que ce soit neutre
+            _uiState.update { it.copy(
+                isRolling = true,
+                purchaseResult = "" // On vide le statut (plus de "Raté" ou "Bravo" affiché)
+            )}
+
+            // 2. ANIMATION (Chiffres qui défilent)
+            repeat(15) { // Un peu plus long pour le suspense (15 x 60ms = ~1 sec)
                 _uiState.update { it.copy(lastPurchaseRoll = Random.nextInt(1, 7)) }
-                delay(80)
+                delay(60)
             }
 
-            // Vrai calcul
+            // 3. VRAI CALCUL
             val roll = Random.nextInt(1, 7)
             val success = roll >= state.purchaseTarget
             val newAttempts = state.purchaseAttempts + 1
 
-            // On met à jour les gorgées bues tout de suite
+            // On met à jour les gorgées bues
             val updatedPlayers = state.players.toMutableList()
             val me = updatedPlayers[state.currentPlayerIndex]
             updatedPlayers[state.currentPlayerIndex] = me.copy(drinksTaken = me.drinksTaken + roll)
 
-            // Logique de succès/échec
+            // 4. RÉSULTAT FINAL
             if (success) {
+                // --- SUCCÈS ---
                 val currentPos = state.currentPlayer.position
                 val currentCase = state.board[currentPos]
                 val newCase = currentCase.copy(ownerId = me.id)
@@ -477,16 +553,18 @@ class GameViewModel : ViewModel() {
                     lastPurchaseRoll = roll,
                     purchaseAttempts = newAttempts,
                     purchaseResult = "SUCCESS",
+                    isRolling = false, // Fin de l'animation
                     turnState = TurnState.PROPERTY_BUY_ACTION
                 )}
             } else {
+                // --- ÉCHEC ---
                 val resultState = if (newAttempts >= 2) "FAILED_FINAL" else "FAILED_RETRY"
                 _uiState.update { it.copy(
                     players = updatedPlayers,
                     lastPurchaseRoll = roll,
                     purchaseAttempts = newAttempts,
                     purchaseResult = resultState,
-                    // Si échec final, on reste sur l'écran pour montrer le résultat, sinon on update juste l'état
+                    isRolling = false, // Fin de l'animation
                     turnState = TurnState.PROPERTY_BUY_ACTION
                 )}
             }
