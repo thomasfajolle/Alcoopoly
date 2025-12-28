@@ -171,31 +171,38 @@ class GameViewModel : ViewModel() {
         val state = _uiState.value
 
         when {
-            // CAS 1 : C'est le message "DOUBLE" -> On bouge
             state.eventTitle.contains("DOUBLE") -> {
                 _uiState.update { it.copy(turnState = TurnState.MOVE_PLAYER) }
                 movePlayer(state.diceResult)
             }
 
-            // CAS 2 : Prison
+            // --- AJOUT ICI ---
+            state.eventTitle.contains("TÉLÉPORTATION") -> {
+                // Après une téléportation, on résout la case d'arrivée (Achat/Loyer)
+                resolveCurrentCase()
+            }
+            // CAS REJOUE (Carte 139)
+            state.eventTitle.contains("REJOUE") -> {
+                _uiState.update { it.copy(
+                    turnState = TurnState.ROLL_DICE, // On repart au lancer
+                    diceResult = 0, die1 = 0, die2 = 0, // Reset visuel
+                    isDoubles = false, replayAvailable = false
+                )}
+            }
             state.isEscapingPrison -> {
                 if (state.currentPlayer.inPrison) {
-                    // ÉCHEC (Toujours en prison) : On ne bouge pas, on finit le tour.
                     _uiState.update { it.copy(isEscapingPrison = false, turnState = TurnState.POST_CASE_ACTIONS) }
                 } else {
-                    // SUCCÈS (Libéré) : On bouge !
                     _uiState.update { it.copy(isEscapingPrison = false, turnState = TurnState.MOVE_PLAYER) }
                     movePlayer(state.diceResult)
                 }
             }
 
-            // CAS 3 : Passage Départ
             state.isResolvingStartPass -> {
                 _uiState.update { it.copy(isResolvingStartPass = false) }
                 resolveCurrentCase()
             }
 
-            // AUTRES (Info simple)
             else -> {
                 _uiState.update { it.copy(turnState = TurnState.POST_CASE_ACTIONS) }
             }
@@ -482,16 +489,105 @@ class GameViewModel : ViewModel() {
     private fun applyCardEffect(card: Card) {
         viewModelScope.launch {
             delay(500)
+            val state = _uiState.value
+
             when (card.id) {
-                106, 141 -> teleportPlayer(0, "Oups... Retour à la case départ !")
-                105 -> teleportPlayer(35, "Téléportation à la Soirée BDE !")
-                146 -> teleportPlayer(37, "Bonne chance pour ton date...")
-                145 -> teleportPlayer(15, "Direction le Bar'bu !")
-                143 -> {
-                    val currentPos = _uiState.value.currentPlayer.position
-                    val newPos = (currentPos - 3 + 40) % 40
+                // --- DÉPLACEMENTS (101-107) ---
+                101 -> { // Bonne année -> Départ
+                    teleportPlayer(0, "Bonne année ! Retour case départ.")
+                }
+                102 -> { // Alcool au volant -> Prison
+                    _uiState.update { it.copy(turnState = TurnState.SPECIAL_EVENT_ACTION) } // Hack pour refresh
+                    val prisonIndex = 10
+                    _uiState.update { st ->
+                        val players = st.players.toMutableList()
+                        val me = players[st.currentPlayerIndex]
+                        players[st.currentPlayerIndex] = me.copy(position = prisonIndex, inPrison = true, prisonTurns = 0)
+                        st.copy(players = players)
+                    }
+                    triggerSpecialEvent("🚔 PRISON", "Direction la cellule de dégrisement !")
+                }
+                103 -> { // C'est Mercredi -> Bar'bu (Case 16)
+                    // Logique spéciale : Si c'est possédé, on paie. Si c'est libre, on achète PAS.
+                    // On fait le déplacement manuellement ici sans passer par teleportPlayer pour éviter resolveCurrentCase standard
+                    val targetIndex = 15
+                    _uiState.update { st ->
+                        val players = st.players.toMutableList()
+                        players[st.currentPlayerIndex] = players[st.currentPlayerIndex].copy(position = targetIndex)
+                        st.copy(players = players)
+                    }
+
+                    val barBu = state.board[targetIndex]
+                    if (barBu.ownerId != null && barBu.ownerId != state.currentPlayer.id) {
+                        // Appartient à quelqu'un -> On paie le loyer
+                        val rent = calculateRent(barBu, state.players)
+                        _uiState.update { it.copy(turnState = TurnState.RENT_PAYMENT_ACTION, pendingRent = rent) }
+                    } else {
+                        // Libre ou à moi -> Juste un message, pas d'achat
+                        triggerSpecialEvent("🍺 BAR'BU", "Tu es au bar ! (Tu ne peux pas acheter, juste consommer).")
+                    }
+                }
+                104 -> teleportPlayer(37, "Bonne chance pour ton date...") // Case 38
+                105 -> teleportPlayer(35, "Direction la Soirée BDE !") // Case 36
+                106 -> { // Oubli Tel -> Bar précédent
+                    val newPos = findNearestBarBackwards(state.currentPlayer.position)
+                    teleportPlayer(newPos, "Tu retournes au bar précédent chercher ton tel.")
+                }
+                107 -> { // Space Cake -> Recule (Simulation : Recule de 3 cases)
+                    val current = state.currentPlayer.position
+                    val newPos = (current - 3 + 40) % 40
                     teleportPlayer(newPos, "Tu es trop défoncé... Tu recules.")
                 }
+
+                // --- POSITIONS & VOLS (108, 122, 124) ---
+                108 -> swapPositionWithRandom() // Vis ma vie
+
+                124 -> swapIdentityWithRandomPlayer() // Vol d'identité
+
+                122 -> stealRandomProperty() // Expropriation (On utilise vol au hasard)
+                121 -> stealRandomProperty() // Vol de propriété (On simplifie en vol hasard pour l'appli)
+                123 -> stealRandomProperty() // OPA Hostile (On simplifie en vol hasard)
+
+                // ID 136 : DEALER (Simulation de fuite)
+                136 -> {
+                    var attempts = 0
+                    var penalty = 0
+                    var isDouble = false
+
+                    // On simule jusqu'à un double (max 10 essais pour éviter l'infini)
+                    while (!isDouble && attempts < 15) {
+                        attempts++
+                        val d1 = Random.nextInt(1, 7)
+                        val d2 = Random.nextInt(1, 7)
+                        if (d1 == d2) {
+                            isDouble = true
+                        } else {
+                            penalty += 2 // 2 gorgées par raté
+                        }
+                    }
+
+                    // On applique la pénalité
+                    _uiState.update { st ->
+                        val players = st.players.toMutableList()
+                        val me = players[st.currentPlayerIndex]
+                        players[st.currentPlayerIndex] = me.copy(drinksTaken = me.drinksTaken + penalty)
+                        st.copy(players = players)
+                    }
+
+                    if (isDouble) {
+                        triggerSpecialEvent("🏃 COURS FOREST !", "Tu as semé le dealer au bout de $attempts essais.\nTu as dû boire $penalty gorgées dans la panique.")
+                    } else {
+                        triggerSpecialEvent("💀 RIP", "Tu as couru 15 fois sans faire de double... Le dealer t'a rattrapé. Tu as bu $penalty gorgées pour rien.")
+                    }
+                }
+
+                // ID 139 : REJOUE
+                139 -> {
+                    // On affiche le message. La logique de "Rejouer" se fera dans onDismissSpecialEvent
+                    triggerSpecialEvent("🎲 REJOUE", "C'est ton jour de chance ! Relance les dés immédiatement.")
+                }
+
+                // Pour les autres cartes (Texte uniquement), rien ne se passe, le tour finit.
             }
         }
     }
@@ -524,5 +620,126 @@ class GameViewModel : ViewModel() {
             val nbBars = owner.ownedCases.count { id -> listOf(6, 16, 26, 36).contains(id) }
             return nbBars * 4
         } else { return case.familyId ?: 1 }
+    }
+    // --- UTILITAIRES POUR LES CARTES ---
+
+    // Échange toutes les données de jeu entre le joueur actuel et une cible aléatoire
+    private fun swapIdentityWithRandomPlayer() {
+        _uiState.update { state ->
+            val players = state.players.toMutableList()
+            val meIndex = state.currentPlayerIndex
+            val me = players[meIndex]
+
+            // Choisir une cible (pas moi)
+            val targets = players.filter { it.id != me.id }
+            if (targets.isEmpty()) return@update state // Pas assez de joueurs
+
+            val target = targets.random()
+            val targetIndex = players.indexOf(target)
+
+            // On échange TOUT sauf l'identité visuelle (Nom, Avatar, Couleur, ID restent)
+            // On échange : Position, Propriétés, Gorgées, Prison
+            val newMe = me.copy(
+                position = target.position,
+                ownedCases = target.ownedCases,
+                drinksTaken = target.drinksTaken,
+                drinksGiven = target.drinksGiven,
+                inPrison = target.inPrison,
+                prisonTurns = target.prisonTurns
+            )
+
+            val newTarget = target.copy(
+                position = me.position,
+                ownedCases = me.ownedCases,
+                drinksTaken = me.drinksTaken,
+                drinksGiven = me.drinksGiven,
+                inPrison = me.inPrison,
+                prisonTurns = me.prisonTurns
+            )
+
+            // Mise à jour des propriétés sur le plateau (OwnerId)
+            val newBoard = state.board.map { case ->
+                when (case.ownerId) {
+                    me.id -> case.copy(ownerId = target.id) // Ce qui était à moi est à lui
+                    target.id -> case.copy(ownerId = me.id) // Ce qui était à lui est à moi
+                    else -> case
+                }
+            }
+
+            players[meIndex] = newMe
+            players[targetIndex] = newTarget
+
+            state.copy(players = players, board = newBoard)
+        }
+        triggerSpecialEvent("🎭 VOL D'IDENTITÉ", "INCROYABLE ! Tu as échangé ta vie (position, propriétés, gorgées...) avec un autre joueur au hasard !")
+    }
+
+    // Vole une propriété au hasard à un joueur au hasard
+    private fun stealRandomProperty() {
+        val state = _uiState.value
+        val me = state.currentPlayer
+
+        // Trouver les joueurs qui ont des propriétés (pas moi)
+        val richPlayers = state.players.filter { it.id != me.id && it.ownedCases.isNotEmpty() }
+
+        if (richPlayers.isEmpty()) {
+            triggerSpecialEvent("😢 ECHEC", "Personne n'a de propriété à voler...")
+            return
+        }
+
+        // Choisir une victime et une propriété
+        val victim = richPlayers.random()
+        val propertyIdToSteal = victim.ownedCases.random()
+        val propertyName = state.board.find { it.id == propertyIdToSteal }?.name ?: "Inconnue"
+
+        _uiState.update { st ->
+            val players = st.players.toMutableList()
+            val victimIndex = players.indexOfFirst { it.id == victim.id }
+            val meIndex = st.currentPlayerIndex
+
+            // Mise à jour des listes de propriétés
+            val newVictim = players[victimIndex].copy(ownedCases = players[victimIndex].ownedCases - propertyIdToSteal)
+            val newMe = players[meIndex].copy(ownedCases = players[meIndex].ownedCases + propertyIdToSteal)
+
+            players[victimIndex] = newVictim
+            players[meIndex] = newMe
+
+            // Mise à jour du plateau
+            val newBoard = st.board.map { case ->
+                if (case.id == propertyIdToSteal) case.copy(ownerId = me.id) else case
+            }
+
+            st.copy(players = players, board = newBoard)
+        }
+        triggerSpecialEvent("🏴‍☠️ VOL !", "Tu as volé '$propertyName' à ${victim.name} !")
+    }
+
+    // Échange de position avec un joueur au hasard
+    private fun swapPositionWithRandom() {
+        _uiState.update { state ->
+            val players = state.players.toMutableList()
+            val meIndex = state.currentPlayerIndex
+            val targets = players.indices.filter { it != meIndex } // Indices des autres
+
+            if (targets.isEmpty()) return@update state
+
+            val targetIndex = targets.random()
+            val me = players[meIndex]
+            val target = players[targetIndex]
+
+            val tempPos = me.position
+            players[meIndex] = me.copy(position = target.position)
+            players[targetIndex] = target.copy(position = tempPos)
+
+            state.copy(players = players)
+        }
+        triggerSpecialEvent("🔄 VIS MA VIE", "Tu as échangé ta place avec un autre joueur !")
+    }
+
+    // Cherche le bar le plus proche en arrière
+    private fun findNearestBarBackwards(currentPos: Int): Int {
+        val bars = listOf(35, 25, 15, 5) // Indices des bars (36, 26, 16, 6) inversés
+        // On cherche le premier bar qui est plus petit que ma position
+        return bars.firstOrNull { it < currentPos } ?: 35 // Si je suis case 2, le bar précédent est le 36 (index 35)
     }
 }

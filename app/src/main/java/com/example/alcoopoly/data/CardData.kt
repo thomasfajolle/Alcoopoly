@@ -5,191 +5,93 @@ import com.example.alcoopoly.model.Card
 
 object CardData {
 
-    // --- MINI-JEUX ---
+    // --- MINI-JEUX (ID 200+) ---
     val initialMiniGameCards = listOf(
-        // Bataille de regard (x1)
-        Card(1, "👀 BATAILLE DE REGARD\nLe perdant boit 5 gorgées.", CardType.MINI_JEU),
-
-        // Dans ma valise (x1)
-        Card(2, "🧳 DANS MA VALISE\nLe premier qui oublie un objet boit 3.", CardType.MINI_JEU),
-
-        // Qui pourrait (x1)
-        Card(3, "👉 QUI POURRAIT ?\nLance un 'Qui pourrait...'. À 3, tout le monde pointe quelqu'un.\nLa personne visée boit le nombre de votes reçus.", CardType.MINI_JEU),
-
-        // 1024 (x1)
-        Card(4, "📱 1024\nTout le monde tape un nombre entre 1 et 1024 sur son tel.\nSi doublon : ils boivent 2.\nSi quelqu'un a mis 1 ou 1024 : il distribue 2.\nEnsuite entre 1-512, 1-256...", CardType.MINI_JEU),
-
-        // Bite Chatte Couilles (x1)
-        Card(5, "🐱 BITE - CHATTE - COUILLES\nFaites 5 tours. Si vous connaissez pas les règles, cherchez sur Internet ou inventez !", CardType.MINI_JEU),
-
-        // 3 anecdotes (x1)
-        Card(6, "🤥 3 ANECDOTES\nRaconte 2 vraies, 1 fausse. Les autres devinent la fausse.\nCeux qui se trompent boivent 5.\nSi personne ne se trompe : CUL SEC pour toi !", CardType.MINI_JEU),
-
-        // Tu préfères (x2)
-        Card(7, "⚖️ TU PRÉFÈRES ?\nPose un dilemme. La minorité boit le nombre de gorgées de la majorité.\nEx: 5 vs 2 -> Les 2 boivent 5.", CardType.MINI_JEU),
-        Card(8, "⚖️ TU PRÉFÈRES ? (Le Retour)\nPose un dilemme. La minorité boit le nombre de gorgées de la majorité.", CardType.MINI_JEU),
-
-        // PMU (x1)
-        Card(9, "🐎 PMU\nSortez 4 valets. Pariez des gorgées sur une couleur (buvez pour valider).\n1er : Distribue le double.\n2e : Distribue la mise.\n3e : Boit la mise.\n4e : Boit le double.", CardType.MINI_JEU),
-
-        // Jeu de la pièce (x3)
-        Card(10, "🪙 JEU DE LA PIÈCE\nFaites rebondir une pièce... (Si vous savez pas jouer, passez à un autre jeu !)", CardType.MINI_JEU),
-        Card(11, "🪙 JEU DE LA PIÈCE\nC'est reparti pour un tour !", CardType.MINI_JEU),
-        Card(12, "🪙 JEU DE LA PIÈCE\nEncore une fois !", CardType.MINI_JEU),
-
-        // Juste Cuite (x1)
-        Card(13, "🧪 JUSTE CUITE\nLe maître de maison te prépare un shot de potion pure.\nDevine le degré d'alcool.\nTu bois la différence entre ton estimation et le réel (ex: dit 40°, réel 70° -> 30 gorgées !).", CardType.MINI_JEU),
-
-        // Rime (x1)
-        Card(14, "📝 RIME\nTu commences avec un mot. Chacun doit trouver une rime.\nLe premier qui sèche ou répète boit 3.", CardType.MINI_JEU),
-
-        // 99 (x1)
-        Card(15, "🔢 LE 99\nComptez jusqu'à 99 avec les cartes (Valet +/-10, Dame sens, Roi 70, As 1/11).\nDizaine pile : tu donnes le chiffre.\nDizaine dépassée : tu bois le chiffre.\n99 atteint ou dépassé : CUL SEC.", CardType.MINI_JEU),
-
-        // Invente (x1)
-        Card(16, "💡 CRÉATIF\nInvente un mini-jeu ou refais-en un que tu as kiffé.", CardType.MINI_JEU),
-
-        // Je n'ai jamais (x3)
-        Card(17, "😇 JE N'AI JAMAIS\nDis un 'Je n'ai jamais...'. Ceux qui l'ont fait boivent 2.", CardType.MINI_JEU),
-        Card(18, "😇 JE N'AI JAMAIS\nEncore un tour ! Ceux qui l'ont fait boivent 2.", CardType.MINI_JEU),
-        Card(19, "😇 J'AI DÉJÀ\nDis un 'J'ai déjà...'. Ceux qui ne l'ont pas fait boivent 2.", CardType.MINI_JEU),
-
-        // Vod'keau (x2)
-        Card(20, "💧 VOD'KEAU\nToi + 2 joueurs. 1 shot de vodka, 2 d'eau. Buvez (Poker Face).\nLe public parie qui a la vodka. Les perdants boivent un shot.", CardType.MINI_JEU),
-        Card(21, "💧 VOD'KEAU (Revanche)\nOn remet ça ! 1 vodka, 2 eaux. Devinez qui a l'alcool.", CardType.MINI_JEU)
+        Card(201, "👀 BATAILLE DE REGARD\nChoisis une personne. Le premier qui cligne des yeux ou détourne le regard boit 5 gorgées.", CardType.MINI_JEU),
+        Card(202, "🧳 DANS MA VALISE\nLe joueur commence : \"Dans ma valise il y a...\". Le suivant répète et ajoute un objet. Le premier qui se trompe boit 3.", CardType.MINI_JEU),
+        Card(203, "👉 QUI POURRAIT ?\nLance un \"Qui pourrait...\". À 3, tout le monde pointe quelqu'un. La personne visée boit le nombre de votes reçus.", CardType.MINI_JEU),
+        Card(204, "📱 1024\nTout le monde prend son tel en mode calculatrice et tape un nombre entre 1 et 1024. Si deux personnes ont le même nombre = Ils boivent 2. Si quelqu'un met 1 ou 1024 seul = Il distribue 2. Ensuite on réduit (1-512, etc.).", CardType.MINI_JEU),
+        Card(205, "🐱 BITE - CHATTE - COUILLES\nComptez en chiffres romains (1 symbole par personne). Bite = I, Chatte = V, Couilles = X. Faire 5 tours rapides.", CardType.MINI_JEU),
+        Card(206, "🤥 3 ANECDOTES\nRaconte 2 vérités, 1 mensonge. Les autres votent pour le mensonge. Ceux qui se trompent boivent 5. Si personne ne se trompe : CUL SEC pour toi.", CardType.MINI_JEU),
+        Card(207, "⚖️ TU PRÉFÈRES ?\nPose un “tu préfères ?”. La minorité boit le nombre de gorgées de la majorité. (Ex: 5 vs 2 -> Les 2 boivent 5).", CardType.MINI_JEU),
+        Card(208, "🐎 PMU\nSortez 4 valets. Pariez des gorgées sur une couleur (buvez pour valider). 1er : Distribue double. 2e : Distribue mise. 3e : Boit mise. 4e : Boit double.", CardType.MINI_JEU),
+        Card(209, "🪙 JEU DE LA PIÈCE\nVa poser une question dans l’oreille de qui tu veux, il doit répondre en donnant la pièce à la personne qu’il désigne comme sa réponse. La personne désignée connaîtra la question si elle réussit son pile ou face (sinon elle ne saura jamais pourquoi on l’a désignée).", CardType.MINI_JEU),
+        Card(210, "🧪 JUSTE CUITE\nLe maître de maison te prépare un shot mystère (pur). Devine le degré et bois la différence (Ex: dit 40°, réel 45° -> 5 gorgées).", CardType.MINI_JEU),
+        Card(211, "📝 RIME\nTu commences avec un mot. Tour de table, chacun doit rimer. Le premier qui sèche ou répète boit 3.", CardType.MINI_JEU),
+        Card(212, "🔢 LE 99\nComptez jusqu'à 99 (Valet +/-10, Dame change sens, Roi = 70, As = 1 ou 11). Erreur ou dépassement = CUL SEC.", CardType.MINI_JEU),
+        Card(213, "💡 CRÉATIF\nInvente un mini-jeu maintenant ou refais-en un que tu as kiffé.", CardType.MINI_JEU),
+        Card(214, "😇 JE N'AI JAMAIS\nDis un \"Je n'ai jamais...\". Ceux qui l'ont fait boivent 2.", CardType.MINI_JEU),
+        Card(215, "😇 J'AI DÉJÀ\nDis un \"J'ai déjà...\". Ceux qui NE l'ont PAS fait boivent 2.", CardType.MINI_JEU),
+        Card(216, "💧 VOD'KEAU\nChoisis 2 joueurs pour t’accompagner. 1 shot de vodka, 2 d'eau. Buvez et pariez sur qui a la vodka. Les perdants boivent un shot.", CardType.MINI_JEU),
+        Card(217, "🔤 THÈME\nChoisis un thème. Chacun cite un élément. Le premier qui sèche boit 3.", CardType.MINI_JEU),
+        Card(218, "🌊 LA CASCADE\nTu commences à boire. Ton voisin suit. Quand tu arrêtes, ton voisin peut s'arrêter, et ainsi de suite.", CardType.MINI_JEU),
+        Card(219, "🧠 QUESTION POUR UN CHAMPION\nPose une question de culture G. Le premier qui répond juste distribue 3. Si personne ne trouve, tu bois 3.", CardType.MINI_JEU),
+        Card(220, "🔢 LE CHIFFRE MAUDIT\nChoisis un chiffre entre 1 et 6. Jusqu'au prochain tour, à chaque fois qu'on lance les dés pour n'importe quoi, si ce chiffre sort, tu bois.", CardType.MINI_JEU),
+        Card(221, "🗿 MÉDUSA\nTout le monde baisse la tête. À 3, on relève la tête en regardant quelqu'un. Si deux personnes se regardent -> Elles boivent 3.", CardType.MINI_JEU)
     )
 
-    // --- CARTES CHANCE ---
+    // --- CARTES CHANCE (ID 100+) ---
     val initialChanceCards = listOf(
-        // Maître du Limousin
-        Card(101, "👑 MAÎTRE DU LIMOUSIN\nBois 5 gorgées maintenant. En échange, tu peux lancer un Limousin à qui tu veux, quand tu veux (1 fois).", CardType.CHANCE),
+        // --- DÉPLACEMENTS & ACTIONS LOGIQUES (ID 101-110) ---
+        Card(101, "📅 BONNE ANNÉE\nNouvelles résolutions : Va à la Cave Départ. Donne 10 gorgées.", CardType.CHANCE),
+        Card(102, "🚔 ALCOOL AU VOLANT\nContrôle de police positif. Direction la cellule de dégrisement (Bar’ban) sans passer par la case départ.", CardType.CHANCE),
+        Card(103, "🍺 C'EST MERCREDI\nVa au Bar'bu (Case 16). Si possédé : paie le loyer. Sinon : tu ne peux pas acheter, juste boire un coup.", CardType.CHANCE),
+        Card(104, "🌹 DATE FOIREUX\nPiégé en date avec Elisa. Tu lui achètes du Saint-Amour. Va case 38.", CardType.CHANCE),
+        Card(105, "😵 SOIRÉE BDE\nTu reprends conscience en fin de soirée BDE. Avance directement à la case 'Soirée BDE' (Case 36).", CardType.CHANCE),
+        Card(106, "📱 OUBLI DE TEL\nTu as oublié ton téléphone au bar précédent... Recule jusqu’au bar le plus proche.", CardType.CHANCE),
+        Card(107, "🍪 SPACE CAKE DU WEI\nLe gâteau était chargé. Tu es défoncé. Fais tes 2 prochains tours en reculant sur le plateau (lancer inversé).", CardType.CHANCE),
+        Card(108, "🔄 VIS MA VIE\nÉchange ta place (et ton pion) avec la personne en face de toi.", CardType.CHANCE),
 
-        // Vol de propriété
-        Card(102, "🏴‍☠️ VOL DE PROPRIÉTÉ\nChoisis une victime. Lancez les dés.\nSi tu fais strictement plus qu'elle, vole-lui la propriété de ton choix.", CardType.CHANCE),
+        // --- CARTES TEXTE (ID 120+) ---
+        // Vols & Attaques
+        Card(120, "👑 MAÎTRE DU LIMOUSIN\nBois 5 gorgées. En échange, tu deviens le Maître du Limousin (Tu peux l'activer quand tu veux).", CardType.CHANCE),
+        Card(121, "🏴‍☠️ VOL DE PROPRIÉTÉ\nChoisis une victime. Lancez les dés. Si tu fais strictement plus qu'elle, vole-lui la propriété de ton choix, sinon bois l’écart aux dés. (Ex : 5 vs 9 : Tu bois 4).", CardType.CHANCE),
+        Card(122, "💰 EXPROPRIATION\nVole la propriété de ton choix. Coût : Le prix de la case (en gorgées) à boire.", CardType.CHANCE),
+        Card(123, "🏘️ OPA HOSTILE\nSi tu possèdes 2 cartes d'une famille, tu peux voler la 3ème manquante à un joueur pour 5 gorgées.", CardType.CHANCE),
+        Card(124, "🎭 VOL D'IDENTITÉ\n(Très Rare) Échange ta place, tes propriétés et ton argent avec le joueur de ton choix.", CardType.CHANCE),
+        Card(125, "👕 VOL À L'ÉTALAGE\nVole un vêtement à la personne de ton choix et mets-le.", CardType.CHANCE),
+        Card(126, "🧥 PORTE D'AIX\nTu te fais dépouiller Porte d'Aix. Enlève 1 vêtement.", CardType.CHANCE),
 
-        // Chi Fou Bois
-        Card(103, "👊 CHI-FOU-BOIS\nDésigne 2 personnes. Elles s'affrontent au Chi-Fou-Mi.\nLe perdant boit 2 gorgées par manche (les égalités s'accumulent !).", CardType.CHANCE),
+        // Règles Temporaires
+        Card(127, "🤐 NI OUI NI NON\nJusqu'à ton prochain tour, interdit de dire Oui ou Non. 1 gorgée par erreur.", CardType.CHANCE),
+        Card(128, "👍 ROI DES POUCES\nTu es le roi des pouces. Quand tu poses ton pouce sur la table, le dernier à le faire boit 2. Valable 3 fois max.", CardType.CHANCE),
+        Card(129, "👈 GAUCHE\nTu chopes le joueur à ta gauche. Pendant 1 tour : Si tu bois, il boit (et inversement).", CardType.CHANCE),
+        Card(130, "👉 DROITE\nTu chopes le joueur à ta droite. Pendant 1 tour : Si tu bois, il boit (et inversement).", CardType.CHANCE),
+        Card(131, "🤝 PARTENAIRE\nChoisis un partenaire. Pendant 1 tour, vous êtes liés : si l'un boit, l'autre aussi.", CardType.CHANCE),
+        Card(132, "🦵 CÂLIN (Gauche)\nPasse le prochain tour assis sur les genoux de ton voisin de gauche.", CardType.CHANCE),
+        Card(133, "🦵 CÂLIN (Droite)\nPasse le prochain tour assis sur les genoux de ton voisin de droite.", CardType.CHANCE),
 
-        // Couple improbable
-        Card(104, "💘 COUPLE IMPROBABLE\nQui aurait le plus de chance de se pécho ici ? Choisis 2 personnes.\nElles sont liées pour 2 tours : si l'une boit, l'autre boit.", CardType.CHANCE),
+        // Défis & Hasard
+        Card(134, "👊 CHI-FOU-BOIS\nDésigne un adversaire. Chi-Fou-Bois en 1 manche gagnante. Le perdant boit 3.", CardType.CHANCE),
+        Card(135, "♦️ ROUGE OU NOIR\nTire une carte. Rouge = Tu donnes 3. Noir = Tu bois 3.", CardType.CHANCE),
+        Card(136, "🏃 DEALER\nTu te fais courser par un dealer d’en bas. Lance les dés jusqu'à faire un double pour le semer. Bois 2 gorgées par essai raté.", CardType.CHANCE),
+        Card(137, "🤔 POUR COMBIEN ?\nLance un \"Pour combien ?\" à la personne en face de toi. (Reverse /2).", CardType.CHANCE),
+        Card(138, "😈 ACTION OU VÉRITÉ\nLance un “action ou vérité” à qui tu veux. S’il refuse = CUL SEC.", CardType.CHANCE),
+        Card(139, "🎲 REJOUE\nC'est ton jour de chance. Relance les dés immédiatement.", CardType.CHANCE),
 
-        // Black-out partiel (Soirée BDE - Case 36)
-        Card(105, "😵 BLACK-OUT PARTIEL\nTu reprends conscience en fin de soirée BDE.\nAvance directement à la case 'Soirée BDE' (Case 36).", CardType.CHANCE),
+        // Distributions & Gorgées
+        Card(140, "🎁 CADEAU\nDonne 4 gorgées à qui tu veux.", CardType.CHANCE),
+        Card(141, "🏙️ MAGNAT\nDonne 4 gorgées à celui qui a le plus de propriétés.", CardType.CHANCE),
+        Card(142, "⛺ SDF\nDonne 4 gorgées à celui qui a le moins de propriétés.", CardType.CHANCE),
+        Card(143, "🎂 ANNIVERSAIRE\nC'est ton anniversaire (ou pas). CUL SEC !", CardType.CHANCE),
+        Card(144, "🍻 SANTÉ\nTout le monde boit 1 gorgée.", CardType.CHANCE),
+        Card(145, "🥂 À LA TIENNE\nTout le monde boit 2 gorgées en ton honneur.", CardType.CHANCE),
+        Card(146, "💸 IMPÔTS\nBois 1 gorgée par propriété que tu possèdes.", CardType.CHANCE),
+        Card(147, "🏦 ERREUR BANCAIRE\nLa banque se trompe. Distribue 5 gorgées.", CardType.CHANCE),
+        Card(148, "⚖️ KARMA\nBois entre 1 et 10 gorgées. Distribue exactement le même montant.", CardType.CHANCE),
+        Card(149, "🌿 AFTER FARIGOULE\nTu termines en after farigoule et bois la bassine de ton plein gré (bois 3 de ton verre si elle est vide).", CardType.CHANCE),
+        Card(150, "♠️ COUP DE POKER\nPioche une carte.\nNoir = Bois le chiffre.\nRouge = Donne le chiffre.\nTête = CUL SEC.", CardType.CHANCE),
 
-        // Black-out total (Retour départ)
-        Card(106, "💀 BLACK-OUT TOTAL\nTu ne te souviens de RIEN.\nRetourne à la Cave Départ. Tu ne donnes rien (car tu n'as rien).", CardType.CHANCE),
-
-        // After Farigoule (Bassine)
-        Card(107, "🌿 AFTER FARIGOULE\nTu finis en after chelou.\nBois la Bassine de ton plein gré.\n(Si elle est vide, bois 3 gorgées de ton verre).", CardType.CHANCE),
-
-        // Vol de vêtement
-        Card(108, "👕 VOL À L'ÉTALAGE\nVole un vêtement à la personne de ton choix et mets-le sur toi.", CardType.CHANCE),
-
-        // Pour combien
-        Card(109, "🤔 POUR COMBIEN ?\nLance un 'Pour combien ?' à la personne en face de toi.\n(Attention au contre-uno /2 !)", CardType.CHANCE),
-
-        // Confessions
-        Card(110, "🤫 CONFESSIONS NOCTURNES\nTu es bourré. Raconte une anecdote honteuse sur toi ou bois 5 gorgées.", CardType.CHANCE),
-
-        // Chope Gauche / Droite
-        Card(111, "👈 GAUCHE\nTu chopes le joueur à ta gauche.\nPendant 1 tour : Si tu bois, il boit. S'il boit, tu bois.", CardType.CHANCE),
-        Card(112, "👉 DROITE\nTu chopes le joueur à ta droite.\nPendant 1 tour : Si tu bois, il boit. S'il boit, tu bois.", CardType.CHANCE),
-
-        // Partenaire
-        Card(113, "🤝 PARTENAIRE\nChoisis ton partenaire de boisson.\nPendant 1 tour, s'il boit, tu bois (mais pas l'inverse).", CardType.CHANCE),
-
-        // Anniversaire
-        Card(114, "🎂 JOYEUX ANNIVERSAIRE !\nC'est ton jour (ou pas). CUL SEC !", CardType.CHANCE),
-
-        // Distributions
-        Card(115, "🎁 CADEAU\nDonne 4 gorgées à qui tu veux.", CardType.CHANCE),
-        Card(116, "🏙️ MAGNAT DE L'IMMOBILIER\nDonne 4 gorgées à celui/celle qui possède le plus de propriétés.", CardType.CHANCE),
-        Card(117, "🎁 GROS CADEAU\nDonne 5 gorgées à qui tu veux.", CardType.CHANCE),
-        Card(118, "🏙️ ROI DU PÉTROLE\nDonne 5 gorgées à celui/celle qui possède le plus de propriétés.", CardType.CHANCE),
-        Card(119, "⛺ SDF\nDonne 5 gorgées à celui/celle qui possède le MOINS de propriétés.", CardType.CHANCE),
-
-        // Action Vérité
-        Card(120, "😈 ACTION OU VÉRITÉ\nLes autres choisissent pour toi.\nRefus = CUL SEC.", CardType.CHANCE),
-
-        // Rentrer chez lui
-        Card(121, "🥴 SAM\nQui a le moins de chance de rentrer chez lui ce soir ?\nIl/Elle donne 3 gorgées à qui il veut.", CardType.CHANCE),
-
-        // Vol d'identité
-        Card(122, "🎭 VOL D'IDENTITÉ\nTu peux prendre la place de quelqu'un.\nTu récupères TOUT : ses propriétés, son verre, sa dignité...", CardType.CHANCE),
-
-        // Générales
-        Card(123, "🍻 SANTÉ !\nTout le monde boit 1 gorgée (même toi).", CardType.CHANCE),
-        Card(124, "🥂 À LA TIENNE !\nTout le monde boit 2 gorgées en ton honneur.", CardType.CHANCE),
-
-        // Dealer
-        Card(125, "🏃 DEALER D'EN BAS\nTu te fais aborder. Pour fuir, lance les dés jusqu'à faire un double.\nBois 2 gorgées par essai raté.", CardType.CHANCE),
-
-        // Bar'ban
-        Card(126, "🚔 QUI POURRAIT ?\nQui pourrait se faire bar'ban (arrêter) ?\nLa personne désignée boit 2 gorgées.", CardType.CHANCE),
-
-        // Écart d'âge
-        Card(127, "🔞 MILF / COUGAR\nCalcule l'écart d'âge max entre 2 personnes que tu as ken.\nBois ce nombre (0 = CUL SEC).", CardType.CHANCE),
-
-        // Monopole
-        Card(128, "🏘️ OPA HOSTILE\nSi tu possèdes 2/3 d'une famille, tu peux voler la propriété manquante pour 3 gorgées.", CardType.CHANCE),
-
-        // Prénoms atypiques
-        Card(129, "📛 PRÉNOMS ATYPIQUES\nTour de table : Citez les prénoms les plus chelous que vous avez pécho.\nLe pire donne 5 gorgées.", CardType.CHANCE),
-
-        // Rouge ou Noir (x2)
-        Card(130, "♦️ ROUGE OU NOIR ♠️\nTire une carte (virtuelle).\nRouge = Tu donnes 3.\nNoir = Tu bois 3.", CardType.CHANCE),
-        Card(131, "♦️ ROUGE OU NOIR ♠️ (Têtes = Sec)\nTire une carte.\nRouge = Tu donnes le chiffre.\nNoir = Tu bois le chiffre.\nTête = CUL SEC.", CardType.CHANCE),
-
-        // Hontes (Sexe / Alcool)
-        Card(132, "😳 HONTE SEXE\nRaconte ta fois la plus honteuse (sexe) ou bois 5.", CardType.CHANCE),
-        Card(133, "🤮 HONTE ALCOOL\nRaconte ta pire cuite ou bois 5.", CardType.CHANCE),
-
-        // Échange
-        Card(134, "🔄 VIS MA VIE\nÉchange ta place avec la personne en face de toi.", CardType.CHANCE),
-
-        // Vol Porte d'Aix
-        Card(135, "🧥 PORTE D'AIX\nTu te fais dépouiller porte d'Aix.\nEnlève 1 vêtement.", CardType.CHANCE),
-
-        // Rejoue (x2)
-        Card(136, "🎲 REJOUE\nC'est ton jour de chance.", CardType.CHANCE),
-        Card(137, "🎲 REJOUE\nEncore une fois !", CardType.CHANCE),
-
-        // Hasard
-        Card(138, "⚖️ ÉQUILIBRE\nBois entre 1 et SEC. Distribue le même montant.", CardType.CHANCE),
-        Card(139, "⚖️ KARMA\nBois entre 1 et SEC. Distribue le même montant.", CardType.CHANCE),
-
-        // Vol payant
-        Card(140, "💰 EXPROPRIATION\nVole la propriété de ton choix.\nCoût : Le prix de la case (en gorgées).", CardType.CHANCE),
-
-        // Résolutions
-        Card(141, "📅 BONNE ANNÉE\nNouvelles résolutions : Va à la Cave Départ.\nDonne 10 gorgées.", CardType.CHANCE),
-
-        // Endormi improbable
-        Card(142, "💤 NARCOLEPTIQUE\nQui pourrait s'endormir n'importe où ?\nElle raconte une anecdote ou boit 5.", CardType.CHANCE),
-
-        // Space Cake
-        Card(143, "🍪 SPACE CAKE DU WEI\nTu es défoncé.\nFais tes 2 prochains tours en reculant sur le plateau.", CardType.CHANCE),
-
-        // Strip
-        Card(144, "👙 STRIP-TEASE\nChoisis une personne. Elle enlève 1 vêtement.", CardType.CHANCE),
-
-        // Mercredi (Barbu -> LTB)
-        Card(145, "📅 C'EST MERCREDI\nVa au Bar'bu (Case 16) puis en after au LTB (Case 26).\nSi quelqu'un les possède, tu paies le loyer. Tu ne peux pas acheter.", CardType.CHANCE),
-
-        // Date Elisa (Saint-Amour)
-        Card(146, "🌹 DATE FOIREUX\nPiégé en date avec Elisa.\nTu lui achètes du Saint-Amour. Va case 38.", CardType.CHANCE),
-
-        // Tour Daron/Daronne
-        Card(147, "👨‍👩‍👦 TOUR DARONS\nChacun dit le nom de ses parents.\nSi quelqu'un a chopé un homonyme : elle boit 4.\nSi quelqu'un a baisé un homonyme : elle boit 8.\n(Cumulable !)", CardType.CHANCE),
-
-        // Tour Frères/Soeurs
-        Card(148, "👫 TOUR FRATRIE\nChacun dit le nom de ses frères/sœurs.\nSi quelqu'un a chopé : elle boit 2.\nSi quelqu'un a baisé : elle boit 4.\n(Cumulable !)", CardType.CHANCE),
-
-        // Genoux
-        Card(149, "🦵 CÂLIN (Gauche)\nPasse le prochain tour sur les genoux de ton voisin de GAUCHE.", CardType.CHANCE),
-        Card(150, "🦵 CÂLIN (Droite)\nPasse le prochain tour sur les genoux de ton voisin de DROITE.", CardType.CHANCE),
-
-        // Téléphone
-        Card(151, "📱 LEAKS\nPasse ton téléphone à qui tu veux.\nIl scrolle ta galerie et montre 1 photo à tout le monde.\nRefus = CUL SEC.", CardType.CHANCE)
+        // Anecdotes
+        Card(151, "😳 HONTE SEXE\nRaconte ta pire honte sexuelle ou bois 5.", CardType.CHANCE),
+        Card(152, "🤮 HONTE ALCOOL\nRaconte ta pire cuite ou bois 5.", CardType.CHANCE),
+        Card(153, "💘 COUPLE\nQui aurait le plus de chance de finir ensemble ici ? Choisis 2 personnes. Elles boivent 2.", CardType.CHANCE),
+        Card(154, "🥴 SAM\nQui a le plus de chance de finir honteux ce soir ? Il boit 3 gorgées.", CardType.CHANCE),
+        Card(155, "📱 LEAKS\nPasse ton tel à qui tu veux. Il peut scroller ta galerie et montrer la photo de son choix au groupe. Si tu refuses = CUL SEC.", CardType.CHANCE),
+        Card(156, "🔞 MILF/COUGAR\nCalcule l'écart d'âge max entre 2 personnes que tu as pécho. Bois ce nombre.", CardType.CHANCE),
+        Card(157, "👨‍👩‍👦 TOUR FRERES/SOEURS\nCitez les prénoms de vos frères et soeurs. Homonyme chopé = 2 gorgées. Homonyme baisé = 4 gorgées. (cumulable)", CardType.CHANCE),
+        Card(158, "👨‍👩‍👦 TOUR DARONS\nCitez les prénoms de vos parents. Homonyme chopé = 4 gorgées. Homonyme baisé = 8 gorgées. (cumulable)", CardType.CHANCE),
+        Card(159, "📛 PRÉNOMS ATYPIQUES\nTour de table : Quels sont les 3 prénoms les plus atypiques que t'as chopé ? La personne avec les prénoms les plus atypiques donne 5.", CardType.CHANCE),
+        Card(160, "💤 NARCOLEPTIQUE\nQui pourrait s'endormir par terre ici même ? Votez tous à 3. La personne désignée boit le nombre de votes qu’elle a reçus.", CardType.CHANCE)
     )
 }
