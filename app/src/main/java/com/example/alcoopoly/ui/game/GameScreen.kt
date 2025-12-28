@@ -4,6 +4,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountBox
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.List
@@ -15,6 +16,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.border
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.alcoopoly.data.enums.CardType
 import com.example.alcoopoly.model.Card
@@ -22,10 +24,10 @@ import com.example.alcoopoly.model.game.GameState
 import com.example.alcoopoly.model.game.TurnState
 import com.example.alcoopoly.ui.game.components.BoardListView
 import com.example.alcoopoly.ui.game.tabs.CardsListScreen
-import com.example.alcoopoly.ui.game.tabs.StatsScreen
+import com.example.alcoopoly.ui.game.tabs.PortfolioScreen
 
 // Enumération pour gérer les 3 onglets
-enum class GameTab { BOARD, STATS, CARDS }
+enum class GameTab { BOARD, PORTFOLIO, CARDS }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -75,10 +77,10 @@ fun GameScreen(
                     onClick = { currentTab = GameTab.BOARD }
                 )
                 NavigationBarItem(
-                    icon = { Icon(Icons.Default.Info, contentDescription = null) },
-                    label = { Text("Classement") },
-                    selected = currentTab == GameTab.STATS,
-                    onClick = { currentTab = GameTab.STATS }
+                    icon = { Icon(Icons.Default.AccountBox, contentDescription = null) },
+                    label = { Text("Joueurs") },
+                    selected = currentTab == GameTab.PORTFOLIO,
+                    onClick = { currentTab = GameTab.PORTFOLIO }
                 )
                 NavigationBarItem(
                     icon = { Icon(Icons.Default.List, contentDescription = null) },
@@ -94,7 +96,13 @@ fun GameScreen(
             // 4. Contenu principal qui change selon l'onglet
             when (currentTab) {
                 GameTab.BOARD -> BoardTabContent(gameState, viewModel)
-                GameTab.STATS -> StatsScreen(gameState.players)
+                GameTab.PORTFOLIO -> PortfolioScreen(
+                    players = gameState.players,
+                    board = gameState.board,
+                    onPlayerQuit = { playerId ->
+                        viewModel.onPlayerQuit(playerId)
+                    }
+                )
                 GameTab.CARDS -> CardsListScreen()
             }
 
@@ -184,20 +192,13 @@ fun BoardTabContent(
                     )
                 }
                 // Affiche le dé si on a un résultat OU si c'est en train de rouler
+                // Zone des Dés
                 if (gameState.diceResult > 0 || gameState.isRolling) {
-                    Box(
-                        modifier = Modifier
-                            .background(
-                                color = if (gameState.isRolling) Color(0xFFFFD700) else Color.White, // Jaune quand ça roule
-                                shape = RoundedCornerShape(8.dp)
-                            )
-                            .padding(8.dp)
-                    ) {
-                        Text(
-                            text = "🎲 ${gameState.diceResult}",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = Color.Black
-                        )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // DÉ 1
+                        DiceBox(value = gameState.die1, isRolling = gameState.isRolling)
+                        // DÉ 2
+                        DiceBox(value = gameState.die2, isRolling = gameState.isRolling)
                     }
                 }
             }
@@ -461,4 +462,24 @@ fun CardDisplayDialog(
             }
         }
     )
+}
+@Composable
+fun DiceBox(value: Int, isRolling: Boolean) {
+    Box(
+        modifier = Modifier
+            .size(40.dp) // Carré
+            .background(
+                color = if (isRolling) Color(0xFFFFD700) else Color.White,
+                shape = RoundedCornerShape(8.dp)
+            )
+            .border(1.dp, Color.Black, RoundedCornerShape(8.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "$value",
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+    }
 }

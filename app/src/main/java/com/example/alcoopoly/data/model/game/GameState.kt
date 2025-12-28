@@ -26,8 +26,11 @@ data class GameState(
     val turnState: TurnState = TurnState.START_TURN,
 
     // Dés de déplacement (2 dés)
-    val diceResult: Int = 0,
+    val die1: Int = 0,
+    val die2: Int = 0,
+    val diceResult: Int = 0, // Somme totale
     val isDoubles: Boolean = false,
+    val replayAvailable: Boolean = false, // Est-ce qu'on doit rejouer après ce tour ?
 
     // LOGIQUE D'ACHAT (1 dé) ---
     val purchaseAttempts: Int = 0,      // Nombre d'essais effectués (0, 1 ou 2)

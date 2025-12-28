@@ -1,56 +1,39 @@
 package com.example.alcoopoly.ui.game
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.example.alcoopoly.data.BoardData
+import com.example.alcoopoly.data.CardData
+import com.example.alcoopoly.data.enums.CardType
+import com.example.alcoopoly.data.enums.CaseType
+import com.example.alcoopoly.model.BoardCase
+import com.example.alcoopoly.model.Card
+import com.example.alcoopoly.model.Player
+import com.example.alcoopoly.model.game.GameState
+import com.example.alcoopoly.model.game.TurnState
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import com.example.alcoopoly.model.game.GameState
-import com.example.alcoopoly.model.game.TurnState
-import com.example.alcoopoly.model.Player
-import com.example.alcoopoly.model.BoardCase
-import com.example.alcoopoly.data.BoardData
-import com.example.alcoopoly.data.enums.CaseType
-import kotlin.random.Random
-import com.example.alcoopoly.data.CardData
-import com.example.alcoopoly.data.enums.CardType
-import com.example.alcoopoly.model.Card
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.random.Random
 
 class GameViewModel : ViewModel() {
 
     private val _uiState = MutableStateFlow(GameState())
     val uiState: StateFlow<GameState> = _uiState.asStateFlow()
 
-    // Supprime le "init" du début de la classe !
-
-    /**
-     * Cette fonction est appelée par l'écran de jeu au démarrage
-     * pour créer les joueurs basés sur ce qu'on a saisi à l'accueil.
-     */
     fun startNewGame(playerDataList: List<String>) {
         if (_uiState.value.players.isNotEmpty()) return
 
-        val colors = listOf(
-            0xFFFF5252, 0xFF448AFF, 0xFF69F0AE, 0xFFFFD740, 0xFFE040FB, 0xFFFF6E40
-        )
-
+        val colors = listOf(0xFFFF5252, 0xFF448AFF, 0xFF69F0AE, 0xFFFFD740, 0xFFE040FB, 0xFFFF6E40)
         val newPlayers = playerDataList.mapIndexed { index, dataString ->
-            // On sépare le Nom et l'Avatar avec le caractère "|"
             val parts = dataString.split("|")
-            val name = parts.getOrElse(0) { "Joueur $index" }
-            val avatar = parts.getOrElse(1) { "😊" } // Emoji par défaut si bug
-
+            val name = parts.getOrElse(0) { "Joueur ${index + 1}" }
+            val avatar = parts.getOrElse(1) { "😊" }
             val color = colors.getOrElse(index) { 0xFF9E9E9E }
-
-            Player(
-                id = index + 1,
-                name = name,
-                color = color,
-                avatar = avatar // <--- On l'enregistre ici
-            )
+            Player(id = index + 1, name = name, color = color, avatar = avatar)
         }
 
         _uiState.update { it.copy(
@@ -62,12 +45,10 @@ class GameViewModel : ViewModel() {
             turnNumber = 1,
             currentPlayerIndex = 0
         )}
-
         advanceGameLoop()
     }
-    /**
-     * Boucle principale qui fait avancer les états automatiques
-     */
+
+    // C'est ici que la boucle se joue : au début du tour, on vérifie si on est bloqué
     fun advanceGameLoop() {
         val currentState = _uiState.value.turnState
         val currentPlayer = _uiState.value.currentPlayer
@@ -75,145 +56,182 @@ class GameViewModel : ViewModel() {
         when (currentState) {
             TurnState.START_TURN -> {
                 _uiState.update { it.copy(turnState = TurnState.CHECK_PLAYER_STATUS) }
-                advanceGameLoop()
+                advanceGameLoop() // On continue immédiatement
             }
-
             TurnState.CHECK_PLAYER_STATUS -> {
                 if (currentPlayer.inPrison) {
+                    // Si en prison -> On active le mode PRISON
                     _uiState.update { it.copy(turnState = TurnState.PRISON_TURN) }
                 } else {
+                    // Sinon -> On lance les dés normalement
                     _uiState.update { it.copy(turnState = TurnState.ROLL_DICE) }
                 }
             }
-            else -> { /* En attente action utilisateur */ }
+            else -> { }
         }
     }
 
-    // --- ACTIONS DE JEU ---
+    // =========================================================================
+    //                        DÉS & DOUBLE (Jeu Normal)
+    // =========================================================================
 
     fun onRollDice() {
         if (_uiState.value.turnState != TurnState.ROLL_DICE) return
 
         viewModelScope.launch {
-            // 1. On dit que ça roule
             _uiState.update { it.copy(isRolling = true) }
-            // 2. Animation : On change les valeurs aléatoirement 10 fois très vite
+
             repeat(10) {
-                _uiState.update { it.copy(
-                    diceResult = Random.nextInt(2, 13) // Entre 2 et 12
-                )}
-                delay(80) // Petite pause de 80ms
+                _uiState.update {
+                    val d1 = Random.nextInt(1, 7)
+                    val d2 = Random.nextInt(1, 7)
+                    it.copy(die1 = d1, die2 = d2, diceResult = d1 + d2)
+                }
+                delay(80)
             }
-            // 3. VRAI LANCER FINAL
+
             val d1 = Random.nextInt(1, 7)
             val d2 = Random.nextInt(1, 7)
             val total = d1 + d2
             val isDouble = d1 == d2
+
             _uiState.update { it.copy(
-                isRolling = false, // Fini de rouler
+                isRolling = false,
+                die1 = d1,
+                die2 = d2,
                 diceResult = total,
                 isDoubles = isDouble,
-                turnState = TurnState.MOVE_PLAYER
+                replayAvailable = isDouble
             )}
-            // 4. On déplace le joueur (après une petite seconde pour lire le résultat)
-            delay(1000)
-            movePlayer(total)
+
+            delay(500)
+
+            if (isDouble) {
+                triggerSpecialEvent(
+                    title = "🎲 DOUBLE $d1 !",
+                    message = "Joli ! Distribue $d1 gorgées (à l'oral).\nTu rejoueras après ce tour !"
+                )
+            } else {
+                _uiState.update { it.copy(turnState = TurnState.MOVE_PLAYER) }
+                movePlayer(total)
+            }
         }
     }
 
-    // --- GESTION PRISON (BAR'BAN) ---
+    // =========================================================================
+    //                        PRISON (Logique stricte 8+)
+    // =========================================================================
+
     fun onRollPrison() {
         val d1 = Random.nextInt(1, 7)
         val d2 = Random.nextInt(1, 7)
         val total = d1 + d2
-        val isDouble = d1 == d2 // (Optionnel si tu veux garder la règle du double, mais ta règle 8+ prévaut)
 
-        // RÈGLE : Il faut faire 8 ou plus pour sortir
+        // RÈGLE : Sortie uniquement si 8 ou plus
         val isSuccess = total >= 8
 
         _uiState.update { state ->
             val updatedPlayers = state.players.toMutableList()
             val me = updatedPlayers[state.currentPlayerIndex]
-
             var title = ""
             var msg = ""
-            var newInPrison = true // Par défaut on reste
 
             if (isSuccess) {
-                // --- SUCCÈS : SORTIE ---
-                newInPrison = false
-                title = "🔓 ÉVASION RÉUSSIE !"
-                msg = "Bravo ! Tu as fait $total (Objectif 8+).\nTu sors de prison et tu avances."
-
+                // SUCCÈS : On libère le joueur
                 updatedPlayers[state.currentPlayerIndex] = me.copy(inPrison = false)
+                title = "🔓 ÉVASION RÉUSSIE !"
+                msg = "Bravo ! Tu as fait $total (8+).\nTu es libre et tu avances."
             } else {
-                // --- ÉCHEC : ON RESTE ---
-                newInPrison = true
-                title = "🔒 RATÉ..."
-                msg = "Tu as fait $total (Objectif 8+).\nTu restes bloqué et tu bois $total gorgées !"
-
-                // Pénalité : On boit le score des dés
+                // ÉCHEC : On force le maintien en prison + Pénalité boisson
                 updatedPlayers[state.currentPlayerIndex] = me.copy(
                     drinksTaken = me.drinksTaken + total,
-                    inPrison = true // Reste explicitement true
+                    inPrison = true // Il reste bien bloqué
                 )
+                title = "🔒 RATÉ..."
+                msg = "Tu as fait $total (moins de 8).\nBois $total gorgées et RESTE EN PRISON !"
             }
 
             state.copy(
                 diceResult = total,
-                isDoubles = isDouble,
+                die1 = d1, die2 = d2,
                 players = updatedPlayers,
-                // On déclenche l'affichage du résultat
                 turnState = TurnState.SPECIAL_EVENT_ACTION,
                 eventTitle = title,
                 eventMessage = msg,
-                isEscapingPrison = true // Marqueur pour dire "C'est une tentative d'évasion"
+                isEscapingPrison = true // Marqueur pour onDismissSpecialEvent
             )
         }
     }
+
+    // =========================================================================
+    //                        ÉVÉNEMENTS (Gestion des suites)
+    // =========================================================================
+
+    fun onDismissSpecialEvent() {
+        val state = _uiState.value
+
+        when {
+            // CAS 1 : C'est le message "DOUBLE" -> On bouge
+            state.eventTitle.contains("DOUBLE") -> {
+                _uiState.update { it.copy(turnState = TurnState.MOVE_PLAYER) }
+                movePlayer(state.diceResult)
+            }
+
+            // CAS 2 : Prison
+            state.isEscapingPrison -> {
+                if (state.currentPlayer.inPrison) {
+                    // ÉCHEC (Toujours en prison) : On ne bouge pas, on finit le tour.
+                    _uiState.update { it.copy(isEscapingPrison = false, turnState = TurnState.POST_CASE_ACTIONS) }
+                } else {
+                    // SUCCÈS (Libéré) : On bouge !
+                    _uiState.update { it.copy(isEscapingPrison = false, turnState = TurnState.MOVE_PLAYER) }
+                    movePlayer(state.diceResult)
+                }
+            }
+
+            // CAS 3 : Passage Départ
+            state.isResolvingStartPass -> {
+                _uiState.update { it.copy(isResolvingStartPass = false) }
+                resolveCurrentCase()
+            }
+
+            // AUTRES (Info simple)
+            else -> {
+                _uiState.update { it.copy(turnState = TurnState.POST_CASE_ACTIONS) }
+            }
+        }
+    }
+
+    // =========================================================================
+    //                        DÉPLACEMENT
+    // =========================================================================
+
     private fun movePlayer(steps: Int) {
         viewModelScope.launch {
-            // 1. On sauvegarde la position de départ pour savoir si on a passé la case départ à la fin
+            _uiState.update { it.copy(turnState = TurnState.MOVE_PLAYER) }
             val startPosition = _uiState.value.currentPlayer.position
             var currentPosition = startPosition
 
-            // 2. BOUCLE D'ANIMATION : On avance case par case
             repeat(steps) {
-                delay(350) // Vitesse du déplacement (350ms par case = rythme agréable)
-
-                // Calcul de la case suivante (+1)
+                delay(350)
                 currentPosition = (currentPosition + 1) % 40
-
-                // Mise à jour de l'affichage pour voir le pion bouger
                 _uiState.update { state ->
                     val updatedPlayers = state.players.toMutableList()
                     val me = updatedPlayers[state.currentPlayerIndex]
                     updatedPlayers[state.currentPlayerIndex] = me.copy(position = currentPosition)
-
-                    // On update l'état pour déclencher le scroll automatique de la liste
                     state.copy(players = updatedPlayers)
                 }
             }
-
-            // 3. EFFET FOCUS FINAL
-            // Une fois arrivé, on attend un peu pour que le joueur voie la case "zoomer"
             delay(800)
 
-            // 4. LOGIQUE DES RÈGLES (Une fois l'animation finie)
-            // On recalcule si on a passé le départ en comparant le début et la fin
             val finalPosition = currentPosition
-            val passedStart = finalPosition < startPosition // Si 2 < 38, on a bouclé
+            val passedStart = if (steps > 0) finalPosition < startPosition else false
             val isLandingOnStart = finalPosition == 0
 
             if (passedStart && !isLandingOnStart) {
-                // --- PASSAGE DÉPART (Bonus +5) ---
+                addDrinksGiven(5)
                 _uiState.update { state ->
-                    val updatedPlayers = state.players.toMutableList()
-                    val me = updatedPlayers[state.currentPlayerIndex]
-                    updatedPlayers[state.currentPlayerIndex] = me.copy(drinksGiven = me.drinksGiven + 5)
-
                     state.copy(
-                        players = updatedPlayers,
                         turnState = TurnState.SPECIAL_EVENT_ACTION,
                         eventTitle = "🍷 Cave Départ (Passage)",
                         eventMessage = "Tu passes devant la Cave ! Distribue 5 gorgées.",
@@ -221,130 +239,274 @@ class GameViewModel : ViewModel() {
                     )
                 }
             } else {
-                // --- RÉSOLUTION NORMALE ---
                 resolveCurrentCase()
             }
         }
     }
+    // =========================================================================
+    //                        GESTION ABANDON
+    // =========================================================================
 
-    /**
-     * LOGIQUE CŒUR : Décide quoi faire sur la case actuelle
-     */
+    fun onPlayerQuit(playerId: Int) {
+        val state = _uiState.value
+        val playerToRemoveIndex = state.players.indexOfFirst { it.id == playerId }
+        if (playerToRemoveIndex == -1) return
+
+        // 1. On libère toutes ses propriétés sur le plateau
+        val newBoard = state.board.map { case ->
+            if (case.ownerId == playerId) case.copy(ownerId = null) else case
+        }
+
+        // 2. On retire le joueur de la liste
+        val newPlayers = state.players.filter { it.id != playerId }
+
+        // 3. On gère la fin de partie (s'il ne reste qu'un joueur)
+        if (newPlayers.size < 2) {
+            // Tu pourrais ici déclencher un écran de victoire,
+            // pour l'instant on laisse tourner mais on pourrait rediriger.
+        }
+
+        // 4. On recalcule à qui c'est le tour
+        // Si le joueur qui partait jouait AVANT moi, mon index diminue de 1.
+        // Si le joueur qui part EST celui qui joue, le tour passe au suivant (qui prend son index).
+        var newCurrentIndex = state.currentPlayerIndex
+        var newTurnState = state.turnState
+
+        if (playerToRemoveIndex < state.currentPlayerIndex) {
+            newCurrentIndex = (state.currentPlayerIndex - 1).coerceAtLeast(0)
+        } else if (playerToRemoveIndex == state.currentPlayerIndex) {
+            // C'était son tour ! Le joueur suivant prend le relais immédiatement
+            // On s'assure que l'index ne dépasse pas la taille de la nouvelle liste
+            if (newCurrentIndex >= newPlayers.size) {
+                newCurrentIndex = 0
+            }
+            // On réinitialise l'état du tour pour le nouveau joueur (comme un début de tour)
+            newTurnState = TurnState.ROLL_DICE
+        }
+
+        _uiState.update { it.copy(
+            board = newBoard,
+            players = newPlayers,
+            currentPlayerIndex = newCurrentIndex,
+            turnState = newTurnState,
+            // On reset les dés et valeurs temporaires pour éviter les bugs
+            diceResult = 0, die1 = 0, die2 = 0,
+            isDoubles = false, replayAvailable = false,
+            purchaseResult = "", pendingRent = 0
+        )}
+
+        // Si c'était le tour du joueur qui est parti, on relance la boucle pour vérifier le statut du nouveau joueur
+        if (playerToRemoveIndex == state.currentPlayerIndex) {
+            // Petite pause ou message optionnel ?
+            advanceGameLoop()
+        }
+    }
+
+    // =========================================================================
+    //                        FIN DU TOUR & REJOUER
+    // =========================================================================
+
+    fun onEndTurn() {
+        val state = _uiState.value
+
+        // Si Double (et pas en prison) -> REJOUE
+        if (state.replayAvailable && !state.currentPlayer.inPrison) {
+            _uiState.update { it.copy(
+                turnState = TurnState.ROLL_DICE, // Retour case départ
+                replayAvailable = false,
+                isDoubles = false,
+                diceResult = 0, die1 = 0, die2 = 0,
+                purchaseResult = "", lastPurchaseRoll = 0
+            )}
+        } else {
+            // JOUEUR SUIVANT
+            passToNextPlayer()
+        }
+    }
+
+    private fun passToNextPlayer() {
+        _uiState.update { state ->
+            val nextIndex = (state.currentPlayerIndex + 1) % state.players.size
+            state.copy(
+                currentPlayerIndex = nextIndex,
+                turnNumber = if (nextIndex == 0) state.turnNumber + 1 else state.turnNumber,
+
+                // CORRECTION MAJEURE ICI :
+                // On ne met pas ROLL_DICE direct, on met CHECK_PLAYER_STATUS
+                // pour que advanceGameLoop vérifie si ce joueur est en prison.
+                turnState = TurnState.CHECK_PLAYER_STATUS,
+
+                diceResult = 0, die1 = 0, die2 = 0,
+                isDoubles = false,
+                purchaseResult = "",
+                lastPurchaseRoll = 0,
+                replayAvailable = false
+            )
+        }
+        // Important : On relance la boucle logique pour traiter le statut du nouveau joueur
+        advanceGameLoop()
+    }
+
+    // =========================================================================
+    //                        RÉSOLUTION CASES
+    // =========================================================================
+
     private fun resolveCurrentCase() {
         val state = _uiState.value
         val currentCase = state.board[state.currentPlayer.position]
 
         when (currentCase.type) {
-            // --- CAS 1 : PROPRIÉTÉS & BARS ---
             CaseType.PROPRIETE, CaseType.BAR -> {
                 if (currentCase.ownerId == null) {
-                    // --- CASE LIBRE : TENTATIVE D'ACHAT ---
-                    // Difficulté selon la rangée (1-10=2, 11-20=3, etc.)
-                    val difficulty = when {
-                        currentCase.id <= 10 -> 2
-                        currentCase.id <= 20 -> 3
-                        currentCase.id <= 30 -> 4
-                        else -> 5
-                    }
-
-                    _uiState.update { it.copy(
-                        turnState = TurnState.PROPERTY_BUY_ACTION,
-                        purchaseTarget = difficulty,
-                        purchaseAttempts = 0,
-                        lastPurchaseRoll = 0,
-                        purchaseResult = ""
-                    )}
-                }
-                else {
-                    // --- LOYER (Mise à jour) ---
-                    // On calcule juste le montant et on change d'état
-                    // L'application des gorgées se fera quand l'utilisateur cliquera sur "OK"
+                    val difficulty = if (currentCase.id <= 10) 2 else if (currentCase.id <= 20) 3 else if (currentCase.id <= 30) 4 else 5
+                    _uiState.update { it.copy(turnState = TurnState.PROPERTY_BUY_ACTION, purchaseTarget = difficulty, purchaseAttempts = 0, lastPurchaseRoll = 0, purchaseResult = "") }
+                } else {
                     val rent = calculateRent(currentCase, state.players)
-
-                    _uiState.update { it.copy(
-                        turnState = TurnState.RENT_PAYMENT_ACTION,
-                        pendingRent = rent
-                    )}
+                    _uiState.update { it.copy(turnState = TurnState.RENT_PAYMENT_ACTION, pendingRent = rent) }
                 }
             }
-
-            // --- CAS 2 : CAVE DÉPART (ARRÊT) ---
             CaseType.DEPART -> {
-                triggerSpecialEvent(
-                    title = "🍷 Cave Départ !",
-                    message = "Tu t'arrêtes pile poil à la cave ! Tu distribues 10 gorgées."
-                )
-                // Appliquer l'effet (+10 gorgées à donner)
                 addDrinksGiven(10)
+                triggerSpecialEvent("🍷 Cave Départ !", "Arrêt pile poil ! Tu distribues 10 gorgées.")
             }
-
-            // --- CAS 3 : BASSINE ---
-            CaseType.BASSINE_REMPLIR -> {
-                triggerSpecialEvent(
-                    title = "🪣 La Bassine",
-                    message = "Verse ce que tu veux dans la bassine centrale !"
-                )
-            }
-            CaseType.BASSINE_BOIRE -> {
-                triggerSpecialEvent(
-                    title = "🤮 CUL SEC !",
-                    message = "Désolé... Tu dois boire TOUTE la bassine !"
-                )
-            }
-
-            // --- CAS 4 : PRISON ---
+            CaseType.BASSINE_REMPLIR -> triggerSpecialEvent("🪣 La Bassine", "Verse ce que tu veux dans la bassine centrale !")
+            CaseType.BASSINE_BOIRE -> triggerSpecialEvent("🤮 CUL SEC !", "Désolé... Tu dois boire TOUTE la bassine !")
             CaseType.ALLER_PRISON -> {
-                // Téléportation Case 11 (Index 10)
                 val prisonIndex = 10
                 val updatedPlayers = state.players.toMutableList()
                 val me = updatedPlayers[state.currentPlayerIndex]
-                updatedPlayers[state.currentPlayerIndex] = me.copy(
-                    position = prisonIndex,
-                    inPrison = true,
-                    prisonTurns = 0
-                )
-
+                updatedPlayers[state.currentPlayerIndex] = me.copy(position = prisonIndex, inPrison = true, prisonTurns = 0)
                 _uiState.update { it.copy(players = updatedPlayers) }
+                triggerSpecialEvent("🚔 BAR'BAN !", "Direction la cellule de dégrisement. Tu es bloqué !")
+            }
+            CaseType.SIMPLE_VISITE -> triggerSpecialEvent("👮 Bar'ban", "Tout va bien, tu n'es que de passage.")
+            CaseType.JARDIN_ENFANT -> triggerSpecialEvent("👶 Jardin d'Enfant", "Il fait chaud... Enlève un vêtement !")
+            CaseType.CHANCE -> drawCard(CardType.CHANCE)
+            CaseType.MINI_JEU -> drawCard(CardType.MINI_JEU)
+        }
+    }
 
-                triggerSpecialEvent(
-                    title = "🚔 BAR'BAN !",
-                    message = "Tu as trop bu. Direction la cellule de dégrisement (Case 11). Tu es bloqué !"
-                )
-            }
-            CaseType.SIMPLE_VISITE -> {
-                // on affiche un message rassurant
-                triggerSpecialEvent(
-                    title = "👮 Bar'ban (Simple Visite)",
-                    message = "Tout va bien ! Tu n'es que de passage. Tu peux narguer ceux qui sont enfermés 😜"
-                )
-            }
+    // =========================================================================
+    //                        ACHAT & LOYER
+    // =========================================================================
 
-            // --- CAS 5 : JARDIN D'ENFANT ---
-            CaseType.JARDIN_ENFANT -> {
-                triggerSpecialEvent(
-                    title = "👶 Jardin d'Enfant",
-                    message = "Il fait chaud ici... Enlève un vêtement !"
-                )
-            }
+    fun onRollForPurchase() {
+        val state = _uiState.value
+        if (state.purchaseResult == "SUCCESS" || state.purchaseAttempts >= 2 || state.isRolling) return
 
-            // --- CAS 6 : CARTES ---
-            CaseType.CHANCE -> {
-                drawCard(CardType.CHANCE)
+        viewModelScope.launch {
+            _uiState.update { it.copy(isRolling = true, purchaseResult = "") }
+            repeat(15) {
+                _uiState.update { it.copy(lastPurchaseRoll = Random.nextInt(1, 7)) }
+                delay(60)
             }
-            CaseType.MINI_JEU -> {
-                drawCard(CardType.MINI_JEU)
+            val roll = Random.nextInt(1, 7)
+            val success = roll >= state.purchaseTarget
+            val newAttempts = state.purchaseAttempts + 1
+            val updatedPlayers = state.players.toMutableList()
+            val me = updatedPlayers[state.currentPlayerIndex]
+            updatedPlayers[state.currentPlayerIndex] = me.copy(drinksTaken = me.drinksTaken + roll)
+
+            if (success) {
+                val currentPos = state.currentPlayer.position
+                val currentCase = state.board[currentPos]
+                val newCase = currentCase.copy(ownerId = me.id)
+                val newBoard = state.board.toMutableList()
+                newBoard[currentPos] = newCase
+                updatedPlayers[state.currentPlayerIndex] = updatedPlayers[state.currentPlayerIndex].copy(ownedCases = me.ownedCases + currentCase.id)
+                _uiState.update { it.copy(
+                    board = newBoard, players = updatedPlayers, lastPurchaseRoll = roll,
+                    purchaseAttempts = newAttempts, purchaseResult = "SUCCESS", isRolling = false, turnState = TurnState.PROPERTY_BUY_ACTION
+                )}
+            } else {
+                val resultState = if (newAttempts >= 2) "FAILED_FINAL" else "FAILED_RETRY"
+                _uiState.update { it.copy(
+                    players = updatedPlayers, lastPurchaseRoll = roll, purchaseAttempts = newAttempts,
+                    purchaseResult = resultState, isRolling = false, turnState = TurnState.PROPERTY_BUY_ACTION
+                )}
             }
         }
     }
 
-    // --- UTILITAIRES POUR ALLÉGER LE CODE ---
+    fun onSkipBuy() {
+        _uiState.update { it.copy(turnState = TurnState.POST_CASE_ACTIONS) }
+    }
+
+    fun onConfirmRent() {
+        val state = _uiState.value
+        val currentCase = state.board[state.currentPlayer.position]
+        val rent = state.pendingRent
+        val me = state.currentPlayer
+        val updatedPlayers = state.players.toMutableList()
+
+        if (currentCase.ownerId == me.id) {
+            updatedPlayers[state.currentPlayerIndex] = me.copy(drinksGiven = me.drinksGiven + rent)
+        } else {
+            updatedPlayers[state.currentPlayerIndex] = me.copy(drinksTaken = me.drinksTaken + rent)
+            val ownerIndex = updatedPlayers.indexOfFirst { it.id == currentCase.ownerId }
+            if (ownerIndex != -1) {
+                val owner = updatedPlayers[ownerIndex]
+                updatedPlayers[ownerIndex] = owner.copy(drinksGiven = owner.drinksGiven + rent)
+            }
+        }
+        _uiState.update { it.copy(players = updatedPlayers, turnState = TurnState.POST_CASE_ACTIONS, pendingRent = 0) }
+    }
+
+    // =========================================================================
+    //                        CARTES & UTILITAIRES
+    // =========================================================================
+
+    private fun drawCard(requestedType: CardType) {
+        _uiState.update { state ->
+            var cardToDisplay: Card? = null
+            val chanceStack = state.chanceCardsStack
+            val miniGameStack = state.miniGameCardsStack
+            val effectiveType = if (requestedType == CardType.MINI_JEU && miniGameStack.isEmpty()) CardType.CHANCE else requestedType
+
+            if (effectiveType == CardType.MINI_JEU) {
+                if (miniGameStack.isNotEmpty()) cardToDisplay = miniGameStack.removeAt(0)
+            } else {
+                if (chanceStack.isNotEmpty()) cardToDisplay = chanceStack.removeAt(0) else cardToDisplay = Card(0, "Plus aucune carte !", CardType.CHANCE)
+            }
+            state.copy(turnState = TurnState.CARD_DRAW_ACTION, currentCard = cardToDisplay, chanceCardsStack = chanceStack, miniGameCardsStack = miniGameStack)
+        }
+    }
+
+    fun onDismissCard() {
+        val state = _uiState.value
+        val card = state.currentCard
+        _uiState.update { it.copy(turnState = TurnState.POST_CASE_ACTIONS, currentCard = null) }
+        if (card != null) applyCardEffect(card)
+    }
+
+    private fun applyCardEffect(card: Card) {
+        viewModelScope.launch {
+            delay(500)
+            when (card.id) {
+                106, 141 -> teleportPlayer(0, "Oups... Retour à la case départ !")
+                105 -> teleportPlayer(35, "Téléportation à la Soirée BDE !")
+                146 -> teleportPlayer(37, "Bonne chance pour ton date...")
+                145 -> teleportPlayer(15, "Direction le Bar'bu !")
+                143 -> {
+                    val currentPos = _uiState.value.currentPlayer.position
+                    val newPos = (currentPos - 3 + 40) % 40
+                    teleportPlayer(newPos, "Tu es trop défoncé... Tu recules.")
+                }
+            }
+        }
+    }
+
+    private suspend fun teleportPlayer(targetIndex: Int, message: String) {
+        _uiState.update { state ->
+            val updatedPlayers = state.players.toMutableList()
+            updatedPlayers[state.currentPlayerIndex] = updatedPlayers[state.currentPlayerIndex].copy(position = targetIndex)
+            state.copy(players = updatedPlayers)
+        }
+        triggerSpecialEvent("✨ TÉLÉPORTATION", message)
+    }
 
     private fun triggerSpecialEvent(title: String, message: String) {
-        _uiState.update { it.copy(
-            turnState = TurnState.SPECIAL_EVENT_ACTION,
-            eventTitle = title,
-            eventMessage = message
-        )}
+        _uiState.update { it.copy(turnState = TurnState.SPECIAL_EVENT_ACTION, eventTitle = title, eventMessage = message) }
     }
 
     private fun addDrinksGiven(amount: Int) {
@@ -355,280 +517,12 @@ class GameViewModel : ViewModel() {
             state.copy(players = updatedPlayers)
         }
     }
-    private fun drawCard(requestedType: CardType) {
-        _uiState.update { state ->
-            var cardToDisplay: Card? = null
 
-            // On récupère les piles actuelles
-            val chanceStack = state.chanceCardsStack
-            val miniGameStack = state.miniGameCardsStack
-
-            // RÈGLE : Si c'est Mini-Jeu mais qu'il n'y en a plus -> On prend Chance
-            val effectiveType = if (requestedType == CardType.MINI_JEU && miniGameStack.isEmpty()) {
-                CardType.CHANCE
-            } else {
-                requestedType
-            }
-
-            if (effectiveType == CardType.MINI_JEU) {
-                // Pioche Mini-Jeu
-                if (miniGameStack.isNotEmpty()) {
-                    cardToDisplay = miniGameStack.removeAt(0) // On prend la première
-                    // Optionnel : On la remet au fond si tu veux des cycles infinis,
-                    // mais ta règle suggère qu'elles s'épuisent, donc on ne la remet pas pour l'instant.
-                }
-            } else {
-                // Pioche Chance
-                if (chanceStack.isNotEmpty()) {
-                    cardToDisplay = chanceStack.removeAt(0)
-                } else {
-                    // Sécurité : Si TOUT est vide (plus de chance, plus de mini-jeu)
-                    cardToDisplay = Card(0, "Plus aucune carte disponible ! Reposez-vous.", CardType.CHANCE)
-                }
-            }
-
-            state.copy(
-                turnState = TurnState.CARD_DRAW_ACTION,
-                currentCard = cardToDisplay,
-                // On sauvegarde les listes modifiées (une carte en moins)
-                chanceCardsStack = chanceStack,
-                miniGameCardsStack = miniGameStack
-            )
-        }
-    }
-
-    // Fonction appelée quand on clique sur "OK" sur une carte
-    fun onDismissCard() {
-        val state = _uiState.value
-        val card = state.currentCard
-
-        // On ferme d'abord la carte visuellement
-        _uiState.update { it.copy(
-            turnState = TurnState.POST_CASE_ACTIONS, // Par défaut, on finit le tour
-            currentCard = null
-        )}
-
-        // Ensuite, on applique les effets spéciaux de déplacement si besoin
-        if (card != null) {
-            applyCardEffect(card)
-        }
-    }
-
-    private fun applyCardEffect(card: Card) {
-        viewModelScope.launch {
-            // Petite pause pour que ce soit naturel après la fermeture de la fenêtre
-            delay(500)
-
-            when (card.id) {
-                // --- RETOUR CAVE DÉPART ---
-                106, 141 -> {
-                    teleportPlayer(0, "Oups... Retour à la case départ !")
-                }
-
-                // --- SOIRÉE BDE (Case 36) ---
-                105 -> {
-                    // La case 36 est à l'index 35
-                    teleportPlayer(35, "Téléportation à la Soirée BDE !")
-                }
-
-                // --- DATE ELISA (Case 38) ---
-                146 -> {
-                    // La case 38 est à l'index 37
-                    teleportPlayer(37, "Bonne chance pour ton date...")
-                }
-
-                // --- MERCREDI (Bar'bu - Case 16) ---
-                145 -> {
-                    teleportPlayer(15, "Direction le Bar'bu !")
-                }
-
-                // --- SPACE CAKE (Reculer) ---
-                // ID 143 : "Fais les deux prochains tours en reculant"
-                // C'est complexe à coder (état persistant), pour l'instant on fait reculer de 3 cases direct
-                143 -> {
-                    val currentPos = _uiState.value.currentPlayer.position
-                    val newPos = (currentPos - 3 + 40) % 40
-                    teleportPlayer(newPos, "Tu es trop défoncé... Tu recules.")
-                }
-            }
-        }
-    }
-
-    // Fonction utilitaire pour déplacer le joueur sans lancer les dés
-    private suspend fun teleportPlayer(targetIndex: Int, message: String) {
-        // 1. Mise à jour de la position
-        _uiState.update { state ->
-            val updatedPlayers = state.players.toMutableList()
-            updatedPlayers[state.currentPlayerIndex] = updatedPlayers[state.currentPlayerIndex].copy(position = targetIndex)
-            state.copy(players = updatedPlayers)
-        }
-
-        // 2. On déclenche un petit message pour expliquer ce qui se passe
-        triggerSpecialEvent(
-            title = "✨ TÉLÉPORTATION",
-            message = message
-        )
-
-        // Note : Après le clic sur "OK" de ce message, resolveCurrentCase sera appelé si besoin
-        // via la logique existante de onDismissSpecialEvent, ou on finit le tour.
-        // Ici, on a mis turnState à POST_CASE_ACTIONS dans onDismissCard,
-        // donc le triggerSpecialEvent va repasser l'état à SPECIAL_EVENT_ACTION.
-    }
-    // Fonction appelée quand on clique sur "OK" dans le message spécial
-    fun onDismissSpecialEvent() {
-        val state = _uiState.value
-
-        when {
-            // CAS 1 : On vient de tenter une évasion
-            state.isEscapingPrison -> {
-                if (state.currentPlayer.inPrison) {
-                    // Échec : Le joueur est toujours en prison -> Fin du tour
-                    _uiState.update { it.copy(
-                        isEscapingPrison = false,
-                        turnState = TurnState.POST_CASE_ACTIONS
-                    )}
-                } else {
-                    // Succès : Le joueur est libre -> Il avance du montant des dés
-                    _uiState.update { it.copy(isEscapingPrison = false) }
-                    movePlayer(state.diceResult) // On utilise le résultat du lancer d'évasion
-                }
-            }
-
-            // CAS 2 : On vient de passer la Case Départ
-            state.isResolvingStartPass -> {
-                _uiState.update { it.copy(isResolvingStartPass = false) }
-                resolveCurrentCase()
-            }
-
-            // CAS 3 : Autres messages (Simple info) -> Fin du tour
-            else -> {
-                _uiState.update { it.copy(turnState = TurnState.POST_CASE_ACTIONS) }
-            }
-        }
-    }
-
-    // --- LOGIQUE D'ACHAT SPÉCIFIQUE (1 DÉ) ---
-    fun onRollForPurchase() {
-        val state = _uiState.value
-        // Sécurités
-        if (state.purchaseResult == "SUCCESS" || state.purchaseAttempts >= 2 || state.isRolling) return
-
-        viewModelScope.launch {
-            // 1. DÉBUT ANIMATION
-            // On active le mode "Roulement" et on efface le résultat précédent pour que ce soit neutre
-            _uiState.update { it.copy(
-                isRolling = true,
-                purchaseResult = "" // On vide le statut (plus de "Raté" ou "Bravo" affiché)
-            )}
-
-            // 2. ANIMATION (Chiffres qui défilent)
-            repeat(15) { // Un peu plus long pour le suspense (15 x 60ms = ~1 sec)
-                _uiState.update { it.copy(lastPurchaseRoll = Random.nextInt(1, 7)) }
-                delay(60)
-            }
-
-            // 3. VRAI CALCUL
-            val roll = Random.nextInt(1, 7)
-            val success = roll >= state.purchaseTarget
-            val newAttempts = state.purchaseAttempts + 1
-
-            // On met à jour les gorgées bues
-            val updatedPlayers = state.players.toMutableList()
-            val me = updatedPlayers[state.currentPlayerIndex]
-            updatedPlayers[state.currentPlayerIndex] = me.copy(drinksTaken = me.drinksTaken + roll)
-
-            // 4. RÉSULTAT FINAL
-            if (success) {
-                // --- SUCCÈS ---
-                val currentPos = state.currentPlayer.position
-                val currentCase = state.board[currentPos]
-                val newCase = currentCase.copy(ownerId = me.id)
-                val newBoard = state.board.toMutableList()
-                newBoard[currentPos] = newCase
-                updatedPlayers[state.currentPlayerIndex] = updatedPlayers[state.currentPlayerIndex].copy(ownedCases = me.ownedCases + currentCase.id)
-
-                _uiState.update { it.copy(
-                    board = newBoard,
-                    players = updatedPlayers,
-                    lastPurchaseRoll = roll,
-                    purchaseAttempts = newAttempts,
-                    purchaseResult = "SUCCESS",
-                    isRolling = false, // Fin de l'animation
-                    turnState = TurnState.PROPERTY_BUY_ACTION
-                )}
-            } else {
-                // --- ÉCHEC ---
-                val resultState = if (newAttempts >= 2) "FAILED_FINAL" else "FAILED_RETRY"
-                _uiState.update { it.copy(
-                    players = updatedPlayers,
-                    lastPurchaseRoll = roll,
-                    purchaseAttempts = newAttempts,
-                    purchaseResult = resultState,
-                    isRolling = false, // Fin de l'animation
-                    turnState = TurnState.PROPERTY_BUY_ACTION
-                )}
-            }
-        }
-    }
-
-    fun onSkipBuy() {
-        _uiState.update { it.copy(turnState = TurnState.POST_CASE_ACTIONS) }
-    }
-
-    fun onEndTurn() {
-        _uiState.update { state ->
-            val nextIndex = (state.currentPlayerIndex + 1) % state.players.size
-            state.copy(
-                currentPlayerIndex = nextIndex,
-                turnState = TurnState.START_TURN,
-                diceResult = 0,
-                isDoubles = false
-            )
-        }
-        advanceGameLoop()
-    }
-    /**
-     * Applique les gorgées (Boire ou Donner) et termine l'action
-     */
-    fun onConfirmRent() {
-        val state = _uiState.value
-        val currentCase = state.board[state.currentPlayer.position]
-        val rent = state.pendingRent
-        val updatedPlayers = state.players.toMutableList()
-        val me = updatedPlayers[state.currentPlayerIndex]
-
-        if (currentCase.ownerId == me.id) {
-            // C'est chez moi -> Je donne (j'ajoute aux stats drinksGiven)
-            updatedPlayers[state.currentPlayerIndex] = me.copy(drinksGiven = me.drinksGiven + rent)
-        } else {
-            // C'est chez l'autre -> Je bois (j'ajoute aux stats drinksTaken)
-            updatedPlayers[state.currentPlayerIndex] = me.copy(drinksTaken = me.drinksTaken + rent)
-
-            // Optionnel : On peut aussi ajouter aux stats "drinksGiven" du propriétaire
-            val ownerIndex = updatedPlayers.indexOfFirst { it.id == currentCase.ownerId }
-            if (ownerIndex != -1) {
-                val owner = updatedPlayers[ownerIndex]
-                updatedPlayers[ownerIndex] = owner.copy(drinksGiven = owner.drinksGiven + rent)
-            }
-        }
-
-        _uiState.update { it.copy(
-            players = updatedPlayers,
-            turnState = TurnState.POST_CASE_ACTIONS,
-            pendingRent = 0
-        )}
-    }
-
-    // Calcul du loyer (Bar ou Famille)
     private fun calculateRent(case: BoardCase, players: List<Player>): Int {
         if (case.type == CaseType.BAR) {
             val owner = players.find { it.id == case.ownerId } ?: return 0
-            // On compte les bars (IDs supposés 6, 16, 26, 36)
             val nbBars = owner.ownedCases.count { id -> listOf(6, 16, 26, 36).contains(id) }
             return nbBars * 4
-        } else {
-            return case.familyId ?: 1
-        }
+        } else { return case.familyId ?: 1 }
     }
-
 }
