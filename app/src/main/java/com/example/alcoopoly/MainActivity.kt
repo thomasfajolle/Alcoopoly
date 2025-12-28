@@ -20,41 +20,49 @@ import com.example.alcoopoly.ui.theme.AlcoopolyTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
         setContent {
             AlcoopolyTheme {
-                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
                     // 1. On crée le contrôleur de navigation
                     val navController = rememberNavController()
 
-                    // 2. On définit les routes (les écrans)
-                    NavHost(navController = navController, startDestination = "welcome") {
+                    // 2. On définit les routes (Les écrans de l'appli)
+                    NavHost(navController = navController, startDestination = "home") {
 
-                        // ÉCRAN 1 : ACCUEIL
-                        composable("welcome") {
+                        // --- ÉCRAN D'ACCUEIL ---
+                        composable("home") {
                             WelcomeScreen(
-                                onStartGame = { playersList ->
-                                    // playersList est maintenant ["Thomas|🦁", "Paul|👽"]
-                                    // On les joint avec des virgules pour l'URL : "Thomas|🦁,Paul|👽"
-                                    val namesString = playersList.joinToString(",")
+                                onStartGame = { names ->
+                                    // On transforme la liste ["Tom", "Léa"] en string "Tom,Léa" pour la passer
+                                    val namesString = names.joinToString(",")
                                     navController.navigate("game/$namesString")
                                 }
                             )
                         }
 
-                        // ÉCRAN 2 : JEU
-                        // On définit que cette route attend un argument "names"
+                        // --- ÉCRAN DE JEU (C'EST ICI QU'ON MODIFIE) ---
                         composable(
-                            route = "game/{names}",
-                            arguments = listOf(navArgument("names") { type = NavType.StringType })
+                            route = "game/{playerNames}",
+                            arguments = listOf(navArgument("playerNames") { type = NavType.StringType })
                         ) { backStackEntry ->
-                            // On récupère la string "Paul,Pierre" et on la remet en liste
-                            val namesString = backStackEntry.arguments?.getString("names") ?: ""
-                            val playerList = namesString.split(",")
+                            // On récupère les noms passés depuis l'accueil
+                            val namesString = backStackEntry.arguments?.getString("playerNames") ?: ""
+                            val playerNames = namesString.split(",").filter { it.isNotBlank() }
 
-                            // On lance l'écran de jeu
-                            GameScreen(playerNames = playerList)
+                            // APPEL DE GAME SCREEN
+                            GameScreen(
+                                playerNames = playerNames,
+                                // C'est ici qu'on branche le tuyau pour le retour à la maison !
+                                onNavigateHome = {
+                                    // On retourne à "home" en effaçant l'historique de la partie
+                                    navController.navigate("home") {
+                                        popUpTo("home") { inclusive = true }
+                                    }
+                                }
+                            )
                         }
                     }
                 }

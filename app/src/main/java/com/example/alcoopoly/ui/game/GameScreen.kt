@@ -17,11 +17,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.border
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.ui.text.style.TextAlign
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.alcoopoly.data.enums.CardType
 import com.example.alcoopoly.model.Card
 import com.example.alcoopoly.model.game.GameState
 import com.example.alcoopoly.model.game.TurnState
+import com.example.alcoopoly.ui.components.DieView
+import com.example.alcoopoly.ui.components.PrisonAnimation
 import com.example.alcoopoly.ui.game.components.BoardListView
 import com.example.alcoopoly.ui.game.tabs.CardsListScreen
 import com.example.alcoopoly.ui.game.tabs.PortfolioScreen
@@ -33,37 +37,45 @@ enum class GameTab { BOARD, PORTFOLIO, CARDS }
 @Composable
 fun GameScreen(
     playerNames: List<String>,
-    viewModel: GameViewModel = viewModel()
+    viewModel: GameViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    onNavigateHome: () -> Unit
 ) {
     // 1. Initialisation de la partie
-    LaunchedEffect(Unit) {
-        viewModel.startNewGame(playerNames)
-    }
-
-    // 2. Récupération des états
+    // On vérifie que la partie n'est pas déjà lancée pour éviter de reset si l'écran tourne
     val gameState by viewModel.uiState.collectAsState()
+    // 2. États locaux
+    var showMenu by remember { mutableStateOf(false) } // État pour afficher le menu
     var currentTab by remember { mutableStateOf(GameTab.BOARD) }
+
+    LaunchedEffect(Unit) {
+        // On lance seulement si la liste des joueurs est vide (première fois)
+        if (gameState.players.isEmpty()) {
+            viewModel.startNewGame(playerNames)
+        }
+    }
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
+            TopAppBar(
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        // Place pour un futur logo (décommente la ligne ci-dessous quand tu auras une image)
-                        // Image(painter = painterResource(id = R.drawable.logo), contentDescription = null, modifier = Modifier.size(32.dp))
-                        // Spacer(modifier = Modifier.width(8.dp))
-
-                        Text(
-                            text = "ALCOOPOLY",
-                            style = MaterialTheme.typography.headlineMedium, // Plus gros
-                            fontWeight = FontWeight.Black, // Plus gras
-                            letterSpacing = 2.sp // Espacement des lettres style "Cinéma"
+                    Text(
+                        "Alcoopoly",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                },
+                actions = {
+                    // BOUTON PARAMÈTRES (ROUE DENTÉE)
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Menu",
+                            tint = Color.White
                         )
                     }
                 },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.primary
                 )
             )
         },
@@ -103,10 +115,33 @@ fun GameScreen(
                         viewModel.onPlayerQuit(playerId)
                     }
                 )
-                GameTab.CARDS -> CardsListScreen()
+                GameTab.CARDS -> CardsListScreen(
+                    chanceCards = gameState.allChanceCards,
+                    miniGameCards = gameState.allMiniGameCards,
+                    onAddCard = { type, title, desc -> viewModel.addCustomCard(type, title, desc) },
+                    onEditCard = { card, title, desc -> viewModel.updateCard(card, title, desc) },
+                    onDeleteCard = { card -> viewModel.deleteCard(card) },
+                    onRestoreCard = { card -> viewModel.restoreCard(card) }
+                )
             }
 
-            // 5. LES DIALOGUES (S'affichent par-dessus tout, peu importe l'onglet)
+            // 5. LES DIALOGUES (S'affichent par-dessus tout)
+
+            // --- MENU PAUSE (Le bloc manquant dans ton code précédent) ---
+            if (showMenu) {
+                GameMenuDialog(
+                    onDismiss = { showMenu = false },
+                    onRestart = {
+                        // On ferme le menu et on relance la partie avec les mêmes joueurs
+                        showMenu = false
+                        viewModel.restartGame()
+                    },
+                    onQuit = {
+                        showMenu = false
+                        onNavigateHome()
+                    }
+                )
+            }
 
             // --- DIALOGUE D'ACHAT ---
             if (gameState.turnState == TurnState.PROPERTY_BUY_ACTION) {
@@ -152,6 +187,15 @@ fun GameScreen(
                     card = gameState.currentCard!!,
                     onDismiss = { viewModel.onDismissCard() }
                 )
+                // --- ANIMATION PRISON ---
+                // On l'affiche si le GameState nous dit de le faire
+                PrisonAnimation(
+                    isVisible = gameState.triggerPrisonAnim,
+                    onAnimationFinished = {
+                        // Quand c'est fini (2 sec), on prévient le ViewModel pour qu'il reset la variable
+                        viewModel.onPrisonAnimationFinished()
+                    }
+                )
             }
         }
     }
@@ -176,7 +220,9 @@ fun BoardTabContent(
         // --- INFO JOUEUR ---
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
-            modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp)
         ) {
             Row(
                 modifier = Modifier.padding(16.dp),
@@ -195,10 +241,18 @@ fun BoardTabContent(
                 // Zone des Dés
                 if (gameState.diceResult > 0 || gameState.isRolling) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        // DÉ 1
-                        DiceBox(value = gameState.die1, isRolling = gameState.isRolling)
+                        // DÉ 1 (Utilise DieView avec une taille adaptée, ex: 30.dp ou 40.dp)
+                        DieView(
+                            value = gameState.die1,
+                            isRolling = gameState.isRolling,
+                            size = 40.dp
+                        )
                         // DÉ 2
-                        DiceBox(value = gameState.die2, isRolling = gameState.isRolling)
+                        DieView(
+                            value = gameState.die2,
+                            isRolling = gameState.isRolling,
+                            size = 40.dp
+                        )
                     }
                 }
             }
@@ -208,7 +262,9 @@ fun BoardTabContent(
         Text(
             text = "Plateau de jeu",
             style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.align(Alignment.Start).padding(bottom = 8.dp)
+            modifier = Modifier
+                .align(Alignment.Start)
+                .padding(bottom = 8.dp)
         )
 
         BoardListView(
@@ -237,7 +293,9 @@ fun BoardTabContent(
                             gameState.turnState == TurnState.POST_CASE_ACTIONS ||
                             gameState.turnState == TurnState.PRISON_TURN),
 
-            modifier = Modifier.fillMaxWidth().height(56.dp)
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(56.dp)
         ) {
             Text(
                 text = when (gameState.turnState) {
@@ -265,7 +323,7 @@ fun BuyPropertyDialog(
     attempts: Int,
     lastRoll: Int,
     resultState: String,
-    isRolling: Boolean, // <--- Nouveau paramètre
+    isRolling: Boolean,
     onRoll: () -> Unit,
     onPass: () -> Unit
 ) {
@@ -277,7 +335,7 @@ fun BuyPropertyDialog(
         onDismissRequest = { },
         title = {
             when {
-                isRolling -> Text("🎲 Lancer en cours...") // Titre neutre pendant l'anim
+                isRolling -> Text("🎲 Lancer en cours...")
                 isSuccess -> Text("🎉 BRAVO ! 🎉")
                 isFinalFailure -> Text("💀 ÉCHEC FINAL 💀")
                 else -> Text("Propriété Libre ! 🎲")
@@ -285,24 +343,30 @@ fun BuyPropertyDialog(
         },
         text = {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                if (isFinished && !isRolling) {
-                    // --- RÉSULTAT FINAL (Fixe) ---
-                    Text("Tu as fait :", style = MaterialTheme.typography.bodyMedium)
-                    Text("$lastRoll", style = MaterialTheme.typography.displayMedium,
-                        color = if(isSuccess) Color(0xFF4CAF50) else Color.Red,
-                        fontWeight = FontWeight.Bold)
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                // --- CAS 1 : C'EST FINI (Gagné ou Perdu définitivement) ---
+                if (isFinished && !isRolling) {
+                    Text("Tu as fait :", style = MaterialTheme.typography.bodyMedium)
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Affiche le DÉ STATIQUE (Gros)
+                    DieView(value = lastRoll, isRolling = false, size = 80.dp)
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
                     Text("🍺 TU BOIS $lastRoll GORGÉES", fontWeight = FontWeight.Bold, color = Color.Red)
 
                     Spacer(modifier = Modifier.height(16.dp))
                     if (isSuccess) {
-                        Text("Cette propriété est maintenant à toi !", style = MaterialTheme.typography.bodyLarge)
+                        Text("Cette propriété est maintenant à toi !", style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
                     } else {
-                        Text("Tu as raté tes 2 essais... La propriété reste libre.", style = MaterialTheme.typography.bodyLarge)
+                        Text("Tu as raté tes 2 essais... La propriété reste libre.", style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
                     }
-                } else {
-                    // --- ÉCRAN DE JEU (ou Animation) ---
+                }
+
+                // --- CAS 2 : EN COURS (Premier lancer ou Retentative) ---
+                else {
                     Text("Vous êtes sur : $caseName", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     Spacer(modifier = Modifier.height(8.dp))
                     Text("OBJECTIF : Faire $targetScore+ avec 1 dé", fontWeight = FontWeight.Bold)
@@ -315,23 +379,37 @@ fun BuyPropertyDialog(
                     Text("⚠️ Tu bois le dé quoi qu'il arrive !", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
 
                     // Affiche le dé si on a lancé ou si ça tourne
-                    if (lastRoll > 0) {
-                        Spacer(modifier = Modifier.height(16.dp))
+                    if (lastRoll > 0 || isRolling) {
+                        Spacer(modifier = Modifier.height(24.dp))
 
-                        // Si ça roule : Couleur OR (neutre). Sinon : ROUGE (car on boit).
-                        val diceColor = if (isRolling) Color(0xFFFFD700) else Color.Red
+                        val displayValue = if (lastRoll == 0) 1 else lastRoll
 
-                        Text(
-                            text = if (isRolling) "$lastRoll" else "Résultat : $lastRoll",
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = diceColor,
-                            fontWeight = FontWeight.Bold
+                        DieView(
+                            value = displayValue,
+                            isRolling = isRolling,
+                            size = 70.dp
                         )
 
-                        // On n'affiche le message d'échec que si l'animation est FINIE
+                        // --- C'EST ICI QUE J'AI FAIT LA MODIFICATION ---
                         if (!isRolling && resultState == "FAILED_RETRY") {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text("Raté ! Mais tu peux retenter.", color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Message clair pour la boisson
+                            Text(
+                                text = "Raté ! Tu bois $lastRoll gorgées 🍺",
+                                color = MaterialTheme.colorScheme.error,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 18.sp,
+                                textAlign = TextAlign.Center
+                            )
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Text(
+                                text = "Mais tu as une 2ème chance !",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = Color.Gray
+                            )
                         }
                     }
                 }
@@ -339,7 +417,6 @@ fun BuyPropertyDialog(
         },
         confirmButton = {
             if (isRolling) {
-                // Bouton désactivé pendant l'animation
                 Button(onClick = {}, enabled = false) { Text("...") }
             } else if (isFinished) {
                 Button(onClick = onPass) {
@@ -352,7 +429,6 @@ fun BuyPropertyDialog(
             }
         },
         dismissButton = {
-            // On cache le bouton abandonner pendant que ça roule ou si c'est fini
             if (!isFinished && !isRolling) {
                 OutlinedButton(onClick = onPass) {
                     Text("Laisser tomber")
@@ -464,22 +540,47 @@ fun CardDisplayDialog(
     )
 }
 @Composable
-fun DiceBox(value: Int, isRolling: Boolean) {
-    Box(
+fun DiceSection(
+    gameState: GameState,
+    onRollDice: () -> Unit
+) {
+    Card(
         modifier = Modifier
-            .size(40.dp) // Carré
-            .background(
-                color = if (isRolling) Color(0xFFFFD700) else Color.White,
-                shape = RoundedCornerShape(8.dp)
-            )
-            .border(1.dp, Color.Black, RoundedCornerShape(8.dp)),
-        contentAlignment = Alignment.Center
+            .fillMaxWidth()
+            .padding(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(4.dp)
     ) {
-        Text(
-            text = "$value",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            color = Color.Black
-        )
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            // --- LES DÉS VISUELS ---
+            Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                // Si les dés valent 0 (début de tour), on affiche peut-être des points d'interrogation ou rien,
+                // mais ici on affiche 1 par défaut ou la valeur actuelle.
+                val d1 = if (gameState.die1 == 0) 1 else gameState.die1
+                val d2 = if (gameState.die2 == 0) 1 else gameState.die2
+
+                DieView(value = d1, isRolling = gameState.isRolling, size = 50.dp)
+                DieView(value = d2, isRolling = gameState.isRolling, size = 50.dp)
+            }
+
+            // --- BOUTON LANCER ---
+            Button(
+                onClick = onRollDice,
+                enabled = !gameState.isRolling && gameState.turnState == TurnState.ROLL_DICE,
+                modifier = Modifier.height(50.dp)
+            ) {
+                Text(
+                    text = if (gameState.isRolling) "..." else "LANCER",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }

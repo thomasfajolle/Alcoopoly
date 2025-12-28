@@ -40,8 +40,12 @@ class GameViewModel : ViewModel() {
             players = newPlayers,
             board = BoardData.defaultBoard,
             turnState = TurnState.START_TURN,
+            // On initialise la PIOCHE (Mélangée)
             chanceCardsStack = CardData.initialChanceCards.toMutableList().apply { shuffle() },
             miniGameCardsStack = CardData.initialMiniGameCards.toMutableList().apply { shuffle() },
+            // On initialise la BIBLIOTHÈQUE (Toutes les cartes, triées par ID pour l'ordre)
+            allChanceCards = CardData.initialChanceCards,
+            allMiniGameCards = CardData.initialMiniGameCards,
             turnNumber = 1,
             currentPlayerIndex = 0
         )}
@@ -360,7 +364,32 @@ class GameViewModel : ViewModel() {
 
     private fun resolveCurrentCase() {
         val state = _uiState.value
-        val currentCase = state.board[state.currentPlayer.position]
+        val currentPos = state.currentPlayer.position
+        val currentCase = state.board[currentPos]
+
+        // --- CAS : ALLEZ EN PRISON (Case 31 -> Index 30) ---
+        if (currentPos == 30) {
+            // On ouvre une coroutine pour pouvoir appeler teleportPlayer
+            viewModelScope.launch {
+                // 1. On active l'animation ET on change l'état
+                _uiState.update { it.copy(
+                    triggerPrisonAnim = true,
+                    turnState = TurnState.SPECIAL_EVENT_ACTION
+                ) }
+
+                // 2. On envoie en prison (Fonction suspendue)
+                teleportPlayer(10, "Direction la cellule de dégrisement !")
+
+                // 3. On force le statut prison (car teleportPlayer ne met pas inPrison = true par défaut)
+                _uiState.update { st ->
+                    val players = st.players.toMutableList()
+                    val me = players[st.currentPlayerIndex]
+                    players[st.currentPlayerIndex] = me.copy(inPrison = true, prisonTurns = 0)
+                    st.copy(players = players)
+                }
+            }
+            return // On arrête la fonction ici
+        }
 
         when (currentCase.type) {
             CaseType.PROPRIETE, CaseType.BAR -> {
@@ -496,16 +525,25 @@ class GameViewModel : ViewModel() {
                 101 -> { // Bonne année -> Départ
                     teleportPlayer(0, "Bonne année ! Retour case départ.")
                 }
-                102 -> { // Alcool au volant -> Prison
-                    _uiState.update { it.copy(turnState = TurnState.SPECIAL_EVENT_ACTION) } // Hack pour refresh
+                // ID 102 : ALCOOL AU VOLANT (PRISON)
+                102 -> {
                     val prisonIndex = 10
                     _uiState.update { st ->
-                        val players = st.players.toMutableList()
-                        val me = players[st.currentPlayerIndex]
-                        players[st.currentPlayerIndex] = me.copy(position = prisonIndex, inPrison = true, prisonTurns = 0)
-                        st.copy(players = players)
+                        val updatedPlayers = st.players.toMutableList()
+                        val me = updatedPlayers[st.currentPlayerIndex]
+
+                        updatedPlayers[st.currentPlayerIndex] = me.copy(
+                            position = prisonIndex,
+                            inPrison = true,
+                            prisonTurns = 0
+                        )
+
+                        st.copy(
+                            players = updatedPlayers,
+                            triggerPrisonAnim = true // <--- ON DÉCLENCHE L'ANIMATION ICI
+                        )
                     }
-                    triggerSpecialEvent("🚔 PRISON", "Direction la cellule de dégrisement !")
+                    triggerSpecialEvent("🚔 PRISON !", "Pas de chance... Tu vas en cellule de dégrisement.")
                 }
                 103 -> { // C'est Mercredi -> Bar'bu (Case 16)
                     // Logique spéciale : Si c'est possédé, on paie. Si c'est libre, on achète PAS.
@@ -741,5 +779,126 @@ class GameViewModel : ViewModel() {
         val bars = listOf(35, 25, 15, 5) // Indices des bars (36, 26, 16, 6) inversés
         // On cherche le premier bar qui est plus petit que ma position
         return bars.firstOrNull { it < currentPos } ?: 35 // Si je suis case 2, le bar précédent est le 36 (index 35)
+    }
+    // =========================================================================
+    //                        GESTION DES CARTES (CRUD + RESTAURATION)
+    // =========================================================================
+
+    fun addCustomCard(type: CardType, title: String, description: String) {
+        _uiState.update { state ->
+            val allCards = state.allChanceCards + state.allMiniGameCards
+            val maxId = allCards.maxOfOrNull { it.id } ?: 300
+            val newId = maxId + 1
+            val fullText = "$title\n$description"
+            val newCard = Card(newId, fullText, type, isActive = true)
+
+            if (type == CardType.CHANCE) {
+                state.copy(
+                    allChanceCards = state.allChanceCards + newCard,
+                    chanceCardsStack = (state.chanceCardsStack + newCard).toMutableList()
+                )
+            } else {
+                state.copy(
+                    allMiniGameCards = state.allMiniGameCards + newCard,
+                    miniGameCardsStack = (state.miniGameCardsStack + newCard).toMutableList()
+                )
+            }
+        }
+    }
+
+    // "Soft Delete" : On passe isActive à false et on la retire de la pioche actuelle
+    fun deleteCard(card: Card) {
+        val disabledCard = card.copy(isActive = false)
+        _uiState.update { state ->
+            if (card.type == CardType.CHANCE) {
+                state.copy(
+                    // On met à jour la liste globale (pour la garder en mémoire)
+                    allChanceCards = state.allChanceCards.map { if (it.id == card.id) disabledCard else it },
+                    // On la vire de la pioche active pour ne plus tomber dessus
+                    chanceCardsStack = state.chanceCardsStack.filter { it.id != card.id }.toMutableList()
+                )
+            } else {
+                state.copy(
+                    allMiniGameCards = state.allMiniGameCards.map { if (it.id == card.id) disabledCard else it },
+                    miniGameCardsStack = state.miniGameCardsStack.filter { it.id != card.id }.toMutableList()
+                )
+            }
+        }
+    }
+
+    // Restauration : On repasse isActive à true et on la remet dans la pioche
+    fun restoreCard(card: Card) {
+        val enabledCard = card.copy(isActive = true)
+        _uiState.update { state ->
+            if (card.type == CardType.CHANCE) {
+                state.copy(
+                    allChanceCards = state.allChanceCards.map { if (it.id == card.id) enabledCard else it },
+                    // On la remet dans la pioche (à la fin)
+                    chanceCardsStack = (state.chanceCardsStack + enabledCard).toMutableList()
+                )
+            } else {
+                state.copy(
+                    allMiniGameCards = state.allMiniGameCards.map { if (it.id == card.id) enabledCard else it },
+                    miniGameCardsStack = (state.miniGameCardsStack + enabledCard).toMutableList()
+                )
+            }
+        }
+    }
+
+    fun updateCard(oldCard: Card, newTitle: String, newDescription: String) {
+        _uiState.update { state ->
+            val fullText = "$newTitle\n$newDescription"
+            val updatedCard = oldCard.copy(description = fullText)
+
+            if (oldCard.type == CardType.CHANCE) {
+                state.copy(
+                    allChanceCards = state.allChanceCards.map { if (it.id == oldCard.id) updatedCard else it },
+                    chanceCardsStack = state.chanceCardsStack.map { if (it.id == oldCard.id) updatedCard else it }.toMutableList()
+                )
+            } else {
+                state.copy(
+                    allMiniGameCards = state.allMiniGameCards.map { if (it.id == oldCard.id) updatedCard else it },
+                    miniGameCardsStack = state.miniGameCardsStack.map { if (it.id == oldCard.id) updatedCard else it }.toMutableList()
+                )
+            }
+        }
+    }
+    // =========================================================================
+    //                        GESTION DE LA PARTIE (MENU PAUSE)
+    // =========================================================================
+
+    fun restartGame() {
+        _uiState.update { state ->
+            // 1. On réinitialise les joueurs (On garde nom/avatar/couleur mais on reset le reste)
+            val resetPlayers = state.players.map { player ->
+                player.copy(
+                    position = 0,
+                    drinksTaken = 0,
+                    drinksGiven = 0,
+                    ownedCases = emptyList(),
+                    inPrison = false,
+                    prisonTurns = 0
+                )
+            }
+
+            // 2. On repart sur un état vierge
+            GameState(
+                players = resetPlayers,
+                board = BoardData.defaultBoard, // Le plateau redevient vierge
+                turnState = TurnState.START_TURN,
+                // On recharge les paquets de cartes complets et mélangés
+                allChanceCards = state.allChanceCards,
+                allMiniGameCards = state.allMiniGameCards,
+                chanceCardsStack = state.allChanceCards.toMutableList().apply { shuffle() },
+                miniGameCardsStack = state.allMiniGameCards.toMutableList().apply { shuffle() },
+                turnNumber = 1,
+                currentPlayerIndex = 0
+            )
+        }
+        // On relance la boucle de démarrage
+        advanceGameLoop()
+    }
+    fun onPrisonAnimationFinished() {
+        _uiState.update { it.copy(triggerPrisonAnim = false) }
     }
 }

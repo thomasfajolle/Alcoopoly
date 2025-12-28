@@ -1,9 +1,10 @@
 package com.example.alcoopoly.model
 
-import com.example.alcoopoly.data.enums.CardType // Si tu as un enum, sinon String
+import com.example.alcoopoly.data.enums.CardType
 
 data class Card(
     val id: Int,
     val description: String,
-    val type: CardType // CHANCE ou MINI_JEU
+    val type: CardType,
+    val isActive: Boolean = true // <--- NOUVEAU (Par défaut, la carte est active)
 )

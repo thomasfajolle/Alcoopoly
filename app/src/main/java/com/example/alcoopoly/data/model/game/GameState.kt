@@ -20,6 +20,7 @@ data class GameState(
     val miniGameCardsStack: MutableList<Card> = mutableListOf(),
     val currentCard: Card? = null,
     val isRolling: Boolean = false,     // Est-ce que les dés roulent ?
+    val triggerPrisonAnim: Boolean = false, // Vrai quand l'animation doit se lancer
 
     // État du tour courant
     val currentPlayerIndex: Int = 0,
@@ -41,6 +42,10 @@ data class GameState(
     // Message d'événement spécial ---
     val eventTitle: String = "",
     val eventMessage: String = "",
+
+    // --- BIBLIOTHÈQUE (Pour l'affichage et la gestion) ---
+    val allChanceCards: List<Card> = emptyList(),
+    val allMiniGameCards: List<Card> = emptyList(),
 
     // État global
     val bassineAmount: Int = 0,
