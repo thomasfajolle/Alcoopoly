@@ -43,6 +43,18 @@ fun GameScreen(
     // 1. Initialisation de la partie
     // On vérifie que la partie n'est pas déjà lancée pour éviter de reset si l'écran tourne
     val gameState by viewModel.uiState.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // GESTION VIBRATION
+    LaunchedEffect(gameState.triggerPrisonAnim) {
+        // Si l'animation prison se lance ET que les vibrations sont activées
+        if (gameState.triggerPrisonAnim && gameState.isVibrationEnabled) {
+            val vibrator = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+            // Vibre pendant 500ms (compatible anciennes versions Android)
+            vibrator?.vibrate(500)
+        }
+    }
+
     // 2. États locaux
     var showMenu by remember { mutableStateOf(false) } // État pour afficher le menu
     var currentTab by remember { mutableStateOf(GameTab.BOARD) }
@@ -127,19 +139,22 @@ fun GameScreen(
 
             // 5. LES DIALOGUES (S'affichent par-dessus tout)
 
-            // --- MENU PAUSE (Le bloc manquant dans ton code précédent) ---
+            // --- MENU PAUSE ---
             if (showMenu) {
                 GameMenuDialog(
+                    gameState = gameState, // <-- On passe l'état
                     onDismiss = { showMenu = false },
                     onRestart = {
-                        // On ferme le menu et on relance la partie avec les mêmes joueurs
                         showMenu = false
                         viewModel.restartGame()
                     },
                     onQuit = {
                         showMenu = false
                         onNavigateHome()
-                    }
+                    },
+                    // Les nouveaux callbacks :
+                    onToggleSound = { viewModel.toggleSound() },
+                    onToggleVibration = { viewModel.toggleVibration() }
                 )
             }
 

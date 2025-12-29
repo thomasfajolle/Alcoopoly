@@ -19,11 +19,13 @@ import androidx.compose.ui.unit.sp
 
 @Composable
 fun GameMenuDialog(
+    gameState: com.example.alcoopoly.model.game.GameState, // On a besoin de l'état pour les switchs
     onDismiss: () -> Unit,
     onRestart: () -> Unit,
-    onQuit: () -> Unit
+    onQuit: () -> Unit,
+    onToggleSound: () -> Unit,      // Callback
+    onToggleVibration: () -> Unit   // Callback
 ) {
-    // États pour gérer les sous-menus
     var showRules by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
     var showCredits by remember { mutableStateOf(false) }
@@ -32,7 +34,13 @@ fun GameMenuDialog(
     if (showRules) {
         FullRulesDialog(onDismiss = { showRules = false })
     } else if (showSettings) {
-        SettingsDialog(onDismiss = { showSettings = false })
+        SettingsDialog(
+            isSoundOn = gameState.isSoundEnabled,
+            isVibrationOn = gameState.isVibrationEnabled,
+            onToggleSound = onToggleSound,
+            onToggleVibration = onToggleVibration,
+            onDismiss = { showSettings = false }
+        )
     } else if (showCredits) {
         CreditsDialog(onDismiss = { showCredits = false })
     } else if (showQuitConfirm) {
@@ -51,7 +59,7 @@ fun GameMenuDialog(
             }
         )
     } else {
-        // --- MENU PRINCIPAL ---
+        // MENU PRINCIPAL
         AlertDialog(
             onDismissRequest = onDismiss,
             title = {
@@ -68,34 +76,81 @@ fun GameMenuDialog(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     MenuButton("Reprendre") { onDismiss() }
-
                     MenuButton("Recommencer la partie") {
                         onRestart()
                         onDismiss()
                     }
-
                     Divider()
-
                     MenuButton("Règles complètes") { showRules = true }
                     MenuButton("Paramètres") { showSettings = true }
                     MenuButton("Crédits") { showCredits = true }
-
                     Divider()
-
                     Button(
                         onClick = { showQuitConfirm = true },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                         modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("Quitter la partie")
-                    }
+                    ) { Text("Quitter la partie") }
                 }
             },
-            confirmButton = {} // Pas de bouton par défaut, on gère tout dans le content
+            confirmButton = {}
         )
     }
 }
 
+// --- BOÎTE DE DIALOGUE PARAMÈTRES (Mise à jour) ---
+@Composable
+fun SettingsDialog(
+    isSoundOn: Boolean,
+    isVibrationOn: Boolean,
+    onToggleSound: () -> Unit,
+    onToggleVibration: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Paramètres") },
+        text = {
+            Column {
+                // Son
+                SettingsRow(
+                    label = "Effets Sonores",
+                    checked = isSoundOn,
+                    onCheckedChange = { onToggleSound() }
+                )
+
+                // Vibration
+                SettingsRow(
+                    label = "Vibrations",
+                    checked = isVibrationOn,
+                    onCheckedChange = { onToggleVibration() }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    "Note : Le mode sombre suit les paramètres de votre téléphone.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = Color.Gray
+                )
+            }
+        },
+        confirmButton = { Button(onClick = onDismiss) { Text("Retour") } }
+    )
+}
+
+@Composable
+fun SettingsRow(label: String, checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyLarge)
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange
+        )
+    }
+}
 @Composable
 fun MenuButton(text: String, onClick: () -> Unit) {
     OutlinedButton(

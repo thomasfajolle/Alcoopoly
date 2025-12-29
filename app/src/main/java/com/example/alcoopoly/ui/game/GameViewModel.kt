@@ -1,9 +1,11 @@
 package com.example.alcoopoly.ui.game
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.alcoopoly.data.BoardData
 import com.example.alcoopoly.data.CardData
+import com.example.alcoopoly.data.repository.CardRepository
 import com.example.alcoopoly.data.enums.CardType
 import com.example.alcoopoly.data.enums.CaseType
 import com.example.alcoopoly.model.BoardCase
@@ -19,9 +21,19 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.random.Random
 
-class GameViewModel : ViewModel() {
+class GameViewModel(application: Application) : AndroidViewModel(application) {
+    // 1. On instancie le Repository
+    private val repository = CardRepository(application.applicationContext)
 
-    private val _uiState = MutableStateFlow(GameState())
+    private val _uiState = MutableStateFlow(GameState(
+        players = emptyList(),
+        board = BoardData.defaultBoard,
+        // 2. On charge les cartes via le repository (ce qui récupère la sauvegarde ou les défauts)
+        allChanceCards = repository.loadChanceCards(),
+        allMiniGameCards = repository.loadMiniGameCards(),
+        chanceCardsStack = repository.loadChanceCards().filter { it.isActive }.toMutableList().apply { shuffle() },
+        miniGameCardsStack = repository.loadMiniGameCards().filter { it.isActive }.toMutableList().apply { shuffle() }
+    ))
     val uiState: StateFlow<GameState> = _uiState.asStateFlow()
 
     fun startNewGame(playerDataList: List<String>) {
@@ -781,64 +793,71 @@ class GameViewModel : ViewModel() {
         return bars.firstOrNull { it < currentPos } ?: 35 // Si je suis case 2, le bar précédent est le 36 (index 35)
     }
     // =========================================================================
-    //                        GESTION DES CARTES (CRUD + RESTAURATION)
+    //               GESTION DES CARTES (AVEC SAUVEGARDE)
     // =========================================================================
 
     fun addCustomCard(type: CardType, title: String, description: String) {
         _uiState.update { state ->
-            val allCards = state.allChanceCards + state.allMiniGameCards
+            val allCards = if (type == CardType.CHANCE) state.allChanceCards else state.allMiniGameCards
             val maxId = allCards.maxOfOrNull { it.id } ?: 300
             val newId = maxId + 1
             val fullText = "$title\n$description"
             val newCard = Card(newId, fullText, type, isActive = true)
 
             if (type == CardType.CHANCE) {
+                val newList = state.allChanceCards + newCard
+                repository.saveChanceCards(newList) // <--- SAUVEGARDE
                 state.copy(
-                    allChanceCards = state.allChanceCards + newCard,
+                    allChanceCards = newList,
                     chanceCardsStack = (state.chanceCardsStack + newCard).toMutableList()
                 )
             } else {
+                val newList = state.allMiniGameCards + newCard
+                repository.saveMiniGameCards(newList) // <--- SAUVEGARDE
                 state.copy(
-                    allMiniGameCards = state.allMiniGameCards + newCard,
+                    allMiniGameCards = newList,
                     miniGameCardsStack = (state.miniGameCardsStack + newCard).toMutableList()
                 )
             }
         }
     }
 
-    // "Soft Delete" : On passe isActive à false et on la retire de la pioche actuelle
     fun deleteCard(card: Card) {
         val disabledCard = card.copy(isActive = false)
         _uiState.update { state ->
             if (card.type == CardType.CHANCE) {
+                val newList = state.allChanceCards.map { if (it.id == card.id) disabledCard else it }
+                repository.saveChanceCards(newList) // <--- SAUVEGARDE
                 state.copy(
-                    // On met à jour la liste globale (pour la garder en mémoire)
-                    allChanceCards = state.allChanceCards.map { if (it.id == card.id) disabledCard else it },
-                    // On la vire de la pioche active pour ne plus tomber dessus
+                    allChanceCards = newList,
                     chanceCardsStack = state.chanceCardsStack.filter { it.id != card.id }.toMutableList()
                 )
             } else {
+                val newList = state.allMiniGameCards.map { if (it.id == card.id) disabledCard else it }
+                repository.saveMiniGameCards(newList) // <--- SAUVEGARDE
                 state.copy(
-                    allMiniGameCards = state.allMiniGameCards.map { if (it.id == card.id) disabledCard else it },
+                    allMiniGameCards = newList,
                     miniGameCardsStack = state.miniGameCardsStack.filter { it.id != card.id }.toMutableList()
                 )
             }
         }
     }
 
-    // Restauration : On repasse isActive à true et on la remet dans la pioche
     fun restoreCard(card: Card) {
         val enabledCard = card.copy(isActive = true)
         _uiState.update { state ->
             if (card.type == CardType.CHANCE) {
+                val newList = state.allChanceCards.map { if (it.id == card.id) enabledCard else it }
+                repository.saveChanceCards(newList) // <--- SAUVEGARDE
                 state.copy(
-                    allChanceCards = state.allChanceCards.map { if (it.id == card.id) enabledCard else it },
-                    // On la remet dans la pioche (à la fin)
+                    allChanceCards = newList,
                     chanceCardsStack = (state.chanceCardsStack + enabledCard).toMutableList()
                 )
             } else {
+                val newList = state.allMiniGameCards.map { if (it.id == card.id) enabledCard else it }
+                repository.saveMiniGameCards(newList) // <--- SAUVEGARDE
                 state.copy(
-                    allMiniGameCards = state.allMiniGameCards.map { if (it.id == card.id) enabledCard else it },
+                    allMiniGameCards = newList,
                     miniGameCardsStack = (state.miniGameCardsStack + enabledCard).toMutableList()
                 )
             }
@@ -851,26 +870,36 @@ class GameViewModel : ViewModel() {
             val updatedCard = oldCard.copy(description = fullText)
 
             if (oldCard.type == CardType.CHANCE) {
+                val newList = state.allChanceCards.map { if (it.id == oldCard.id) updatedCard else it }
+                repository.saveChanceCards(newList) // <--- SAUVEGARDE
                 state.copy(
-                    allChanceCards = state.allChanceCards.map { if (it.id == oldCard.id) updatedCard else it },
+                    allChanceCards = newList,
                     chanceCardsStack = state.chanceCardsStack.map { if (it.id == oldCard.id) updatedCard else it }.toMutableList()
                 )
             } else {
+                val newList = state.allMiniGameCards.map { if (it.id == oldCard.id) updatedCard else it }
+                repository.saveMiniGameCards(newList) // <--- SAUVEGARDE
                 state.copy(
-                    allMiniGameCards = state.allMiniGameCards.map { if (it.id == oldCard.id) updatedCard else it },
+                    allMiniGameCards = newList,
                     miniGameCardsStack = state.miniGameCardsStack.map { if (it.id == oldCard.id) updatedCard else it }.toMutableList()
                 )
             }
         }
     }
+
     // =========================================================================
     //                        GESTION DE LA PARTIE (MENU PAUSE)
     // =========================================================================
-
+    // Important : Mise à jour de restartGame pour bien recharger les cartes
     fun restartGame() {
+        val currentPlayers = _uiState.value.players
+
+        // On recharge depuis le disque pour être sûr d'avoir la dernière version
+        val savedChance = repository.loadChanceCards()
+        val savedMini = repository.loadMiniGameCards()
+
         _uiState.update { state ->
-            // 1. On réinitialise les joueurs (On garde nom/avatar/couleur mais on reset le reste)
-            val resetPlayers = state.players.map { player ->
+            val resetPlayers = currentPlayers.map { player ->
                 player.copy(
                     position = 0,
                     drinksTaken = 0,
@@ -881,24 +910,34 @@ class GameViewModel : ViewModel() {
                 )
             }
 
-            // 2. On repart sur un état vierge
             GameState(
                 players = resetPlayers,
-                board = BoardData.defaultBoard, // Le plateau redevient vierge
+                board = BoardData.defaultBoard,
                 turnState = TurnState.START_TURN,
-                // On recharge les paquets de cartes complets et mélangés
-                allChanceCards = state.allChanceCards,
-                allMiniGameCards = state.allMiniGameCards,
-                chanceCardsStack = state.allChanceCards.toMutableList().apply { shuffle() },
-                miniGameCardsStack = state.allMiniGameCards.toMutableList().apply { shuffle() },
+                allChanceCards = savedChance,
+                allMiniGameCards = savedMini,
+                chanceCardsStack = savedChance.filter { it.isActive }.toMutableList().apply { shuffle() },
+                miniGameCardsStack = savedMini.filter { it.isActive }.toMutableList().apply { shuffle() },
                 turnNumber = 1,
-                currentPlayerIndex = 0
+                currentPlayerIndex = 0,
+                // On garde les préférences utilisateur
+                isSoundEnabled = state.isSoundEnabled,
+                isVibrationEnabled = state.isVibrationEnabled
             )
         }
-        // On relance la boucle de démarrage
         advanceGameLoop()
     }
+
     fun onPrisonAnimationFinished() {
         _uiState.update { it.copy(triggerPrisonAnim = false) }
+    }
+    // --- GESTION DES PARAMÈTRES ---
+
+    fun toggleSound() {
+        _uiState.update { it.copy(isSoundEnabled = !it.isSoundEnabled) }
+    }
+
+    fun toggleVibration() {
+        _uiState.update { it.copy(isVibrationEnabled = !it.isVibrationEnabled) }
     }
 }

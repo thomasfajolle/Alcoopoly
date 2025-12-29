@@ -21,6 +21,9 @@ data class GameState(
     val currentCard: Card? = null,
     val isRolling: Boolean = false,     // Est-ce que les dés roulent ?
     val triggerPrisonAnim: Boolean = false, // Vrai quand l'animation doit se lancer
+    // --- PARAMÈTRES ---
+    val isSoundEnabled: Boolean = false,     // Par défaut : Désactivé
+    val isVibrationEnabled: Boolean = false, // Par défaut : Désactivé
 
     // État du tour courant
     val currentPlayerIndex: Int = 0,
