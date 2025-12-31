@@ -1,5 +1,6 @@
 package com.example.alcoopoly.ui.game
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -24,14 +25,22 @@ fun GameMenuDialog(
     onRestart: () -> Unit,
     onQuit: () -> Unit,
     onToggleSound: () -> Unit,      // Callback
-    onToggleVibration: () -> Unit   // Callback
+    onToggleVibration: () -> Unit,   // Callback
+    viewModel: com.example.alcoopoly.ui.game.GameViewModel
 ) {
     var showRules by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showCardMode by remember { mutableStateOf(false) }
     var showCredits by remember { mutableStateOf(false) }
     var showQuitConfirm by remember { mutableStateOf(false) }
 
-    if (showRules) {
+    if (showCardMode) {
+        // On affiche le dialogue de mode cartes
+        CardModeDialog(
+            viewModel = viewModel,
+            onDismiss = { showCardMode = false }
+        )
+    } else if (showRules) {
         FullRulesDialog(onDismiss = { showRules = false })
     } else if (showSettings) {
         SettingsDialog(
@@ -76,6 +85,7 @@ fun GameMenuDialog(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     MenuButton("Reprendre") { onDismiss() }
+                    MenuButton("🃏 Mode Cartes Uniquement") { showCardMode = true }
                     MenuButton("Recommencer la partie") {
                         onRestart()
                         onDismiss()
@@ -178,15 +188,25 @@ fun FullRulesDialog(onDismiss: () -> Unit) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState()), // Permet de scroller si le texte est long
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Intro
+                // Intro & Matériel
                 Text(
-                    "Le but est simple : Survivre et devenir le plus grand propriétaire foncier (ou le dernier debout).",
+                    "Le but : Survivre et devenir le plus grand propriétaire (ou le dernier debout).",
                     style = MaterialTheme.typography.bodyMedium,
                     fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
                 )
+
+                // --- AJOUT POINT 1 : MATÉRIEL ---
+                Box(modifier = Modifier.background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha=0.3f)).padding(8.dp)) {
+                    Text(
+                        "📱 Note : Ce jeu se joue sur un seul téléphone qui passe de main en main.\n" +
+                                "🎲 Prévoyez de vrais dés et un jeu de cartes physique pour certains défis !",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
 
                 Divider()
 
@@ -194,64 +214,49 @@ fun FullRulesDialog(onDismiss: () -> Unit) {
                 RuleSection(
                     icon = "🎲",
                     title = "DÉPLACEMENT & DOUBLES",
-                    content = "Lance les 2 dés pour avancer.\n" +
-                            "• Si tu fais un DOUBLE : Tu distribues la valeur d'un dé en gorgées et tu rejoues.\n" +
+                    content = "Lance les dés virtuels pour avancer.\n" +
+                            "• DOUBLE : Distribue la valeur d'un dé en gorgées et rejoue.\n" +
                             "• 3 Doubles à la suite = Prison directe !"
                 )
 
-                // 2. Propriétés
+                // 2. Propriétés & Bars
                 RuleSection(
                     icon = "🏠",
-                    title = "LES PROPRIÉTÉS",
-                    content = "• Case LIBRE : Tu peux tenter de l'acheter. Lance 1 dé. Si tu fais le score demandé (ou plus), c'est à toi ! Sinon, tu bois le résultat du dé.\n" +
+                    title = "PROPRIÉTÉS & BARS",
+                    content = "• Case LIBRE : Tu peux l'acheter. Lance 1 dé : si tu fais le score cible, c'est à toi ! Sinon, tu bois le résultat.\n" +
                             "• Case POSSÉDÉE : Tu bois le loyer indiqué au propriétaire.\n" +
-                            "• Posséder toutes les cartes d'une couleur double les loyers !"
+                            "• COULEUR : Avoir toutes les propriétés d'une couleur double les loyers !"
+                )
+
+                // --- MODIF POINT 2 : LES BARS ---
+                RuleSection(
+                    icon = "🍺",
+                    title = "LES BARS (Ex: Bar'bu)",
+                    content = "Ils fonctionnent comme des propriétés spéciales.\n" +
+                            "Plus tu possèdes de Bars différents, plus le loyer que les autres te paient est élevé !"
                 )
 
                 // 3. Prison
                 RuleSection(
                     icon = "👮",
                     title = "LE BAR'BAN (Prison)",
-                    content = "Tu es bloqué ici.\n" +
-                            "Pour sortir, tu dois lancer les dés et faire un score de 8 ou plus.\n" +
-                            "• Réussite : Tu sors et tu avances.\n" +
-                            "• Échec : Tu bois le total des dés et tu restes bloqué."
+                    content = "Tu es bloqué. Pour sortir : fais un score de 8+ aux dés.\n" +
+                            "• Réussite : Tu sors et avances.\n" +
+                            "• Échec : Tu bois le total et restes bloqué."
                 )
 
                 // 4. Bassine
                 RuleSection(
                     icon = "🪣",
                     title = "LA BASSINE",
-                    content = "Prévoyez un verre commun au milieu de la table.\n" +
-                            "• Case REMPLIR : Verse un peu de ton verre dans la bassine.\n" +
-                            "• Case BOIRE : Bois tout le contenu de la bassine (Cul Sec) !"
-                )
-
-                // 5. Bar'bu
-                RuleSection(
-                    icon = "🍺",
-                    title = "LE BAR'BU",
-                    content = "C'est une zone de consommation pure.\n" +
-                            "On ne peut pas acheter ces cases.\n" +
-                            "Si personne ne possède la case : Tu bois juste un coup.\n" +
-                            "Si quelqu'un possède la case (via carte chance) : Tu paies le loyer."
-                )
-
-                Divider()
-
-                Text(
-                    "L'abus d'alcool est dangereux pour la santé. Sachez vous arrêter ou passer votre tour si nécessaire.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.Gray,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth()
+                    content = "Verre commun au centre.\n" +
+                            "• Case REMPLIR : Verse un peu de ton verre.\n" +
+                            "• Case BOIRE : Cul sec de la bassine !"
                 )
             }
         },
         confirmButton = {
-            Button(onClick = onDismiss) {
-                Text("C'est compris !")
-            }
+            Button(onClick = onDismiss) { Text("C'est compris !") }
         }
     )
 }
@@ -270,6 +275,55 @@ fun RuleSection(icon: String, title: String, content: String) {
     }
 }
 
+@Composable
+fun CardModeDialog(
+    viewModel: com.example.alcoopoly.ui.game.GameViewModel,
+    onDismiss: () -> Unit
+) {
+    // État pour afficher la carte tirée
+    var currentCard by remember { mutableStateOf<com.example.alcoopoly.model.Card?>(null) }
+
+    if (currentCard != null) {
+        // Si une carte est tirée, on l'affiche (on réutilise ton dialogue existant)
+        com.example.alcoopoly.ui.game.CardDisplayDialog(
+            card = currentCard!!,
+            onDismiss = { currentCard = null } // Quand on ferme la carte, on revient au choix
+        )
+    } else {
+        // Choix du type de carte
+        AlertDialog(
+            onDismissRequest = onDismiss,
+            title = { Text("Mode Fin de Soirée 🥴") },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Plus la force de jouer ? Tirez juste des cartes !", textAlign = TextAlign.Center)
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Button(
+                        onClick = { currentCard = viewModel.drawRandomCardOnly(com.example.alcoopoly.data.enums.CardType.CHANCE) },
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary)
+                    ) {
+                        Text("Tirer une CHANCE 🍀")
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Button(
+                        onClick = { currentCard = viewModel.drawRandomCardOnly(com.example.alcoopoly.data.enums.CardType.MINI_JEU) },
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                    ) {
+                        Text("Tirer un MINI-JEU 🎲")
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = onDismiss) { Text("Retour au menu") }
+            }
+        )
+    }
+}
 @Composable
 fun SettingsDialog(onDismiss: () -> Unit) {
     AlertDialog(

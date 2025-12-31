@@ -24,43 +24,76 @@ import kotlin.random.Random
 class GameViewModel(application: Application) : AndroidViewModel(application) {
     // 1. On instancie le Repository
     private val repository = CardRepository(application.applicationContext)
+    // 1. On charge d'abord les données du disque
+    private val savedChanceCards = repository.loadChanceCards()
+    private val savedMiniGameCards = repository.loadMiniGameCards()
 
     private val _uiState = MutableStateFlow(GameState(
         players = emptyList(),
         board = BoardData.defaultBoard,
-        // 2. On charge les cartes via le repository (ce qui récupère la sauvegarde ou les défauts)
-        allChanceCards = repository.loadChanceCards(),
-        allMiniGameCards = repository.loadMiniGameCards(),
-        chanceCardsStack = repository.loadChanceCards().filter { it.isActive }.toMutableList().apply { shuffle() },
-        miniGameCardsStack = repository.loadMiniGameCards().filter { it.isActive }.toMutableList().apply { shuffle() }
+        allChanceCards = savedChanceCards,
+        allMiniGameCards = savedMiniGameCards,
+        chanceCardsStack = savedChanceCards.filter { it.isActive }.toMutableList().apply { shuffle() },
+        miniGameCardsStack = savedMiniGameCards.filter { it.isActive }.toMutableList().apply { shuffle() }
     ))
     val uiState: StateFlow<GameState> = _uiState.asStateFlow()
 
-    fun startNewGame(playerDataList: List<String>) {
-        if (_uiState.value.players.isNotEmpty()) return
+    // DANS GameViewModel.kt
 
-        val colors = listOf(0xFFFF5252, 0xFF448AFF, 0xFF69F0AE, 0xFFFFD740, 0xFFE040FB, 0xFFFF6E40)
+    fun startNewGame(playerDataList: List<String>) {
+        // 1. Chargement des cartes sauvegardées
+        val savedChance = repository.loadChanceCards()
+        val savedMiniGame = repository.loadMiniGameCards()
+
+        // 2. Définition des Couleurs (ça ne change pas)
+        val playerColors = listOf(
+            androidx.compose.ui.graphics.Color.Red,
+            androidx.compose.ui.graphics.Color.Blue,
+            androidx.compose.ui.graphics.Color.Green,
+            androidx.compose.ui.graphics.Color.Yellow,
+            androidx.compose.ui.graphics.Color.Magenta,
+            androidx.compose.ui.graphics.Color.Cyan
+        )
+
+        // 3. CRÉATION DES JOUEURS (C'est ici que la magie opère ✨)
         val newPlayers = playerDataList.mapIndexed { index, dataString ->
+            // On sépare le texte "Nom|Avatar" en deux morceaux
             val parts = dataString.split("|")
-            val name = parts.getOrElse(0) { "Joueur ${index + 1}" }
-            val avatar = parts.getOrElse(1) { "😊" }
-            val color = colors.getOrElse(index) { 0xFF9E9E9E }
-            Player(id = index + 1, name = name, color = color, avatar = avatar)
+
+            // Le nom est la première partie
+            val name = parts[0]
+
+            // L'avatar est la deuxième partie (s'il existe, sinon on met un défaut)
+            val avatar = if (parts.size > 1) parts[1] else "👤"
+
+            // La couleur dépend toujours de l'ordre d'arrivée
+            val colorObject = playerColors[index % playerColors.size]
+
+            Player(
+                id = index,
+                name = name,
+                color = colorObject.value.toLong(),
+                avatar = avatar // <--- On utilise l'avatar choisi par le joueur !
+            )
         }
 
-        _uiState.update { it.copy(
-            players = newPlayers,
-            board = BoardData.defaultBoard,
-            turnState = TurnState.START_TURN,
-            // On initialise la PIOCHE (Mélangée)
-            chanceCardsStack = CardData.initialChanceCards.toMutableList().apply { shuffle() },
-            miniGameCardsStack = CardData.initialMiniGameCards.toMutableList().apply { shuffle() },
-            // On initialise la BIBLIOTHÈQUE (Toutes les cartes, triées par ID pour l'ordre)
-            allChanceCards = CardData.initialChanceCards,
-            allMiniGameCards = CardData.initialMiniGameCards,
-            turnNumber = 1,
-            currentPlayerIndex = 0
-        )}
+        // 4. Lancement de la partie
+        _uiState.update { currentState ->
+            GameState(
+                players = newPlayers,
+                board = BoardData.defaultBoard,
+                turnState = TurnState.START_TURN,
+                allChanceCards = savedChance,
+                allMiniGameCards = savedMiniGame,
+                chanceCardsStack = savedChance.filter { it.isActive }.toMutableList().apply { shuffle() },
+                miniGameCardsStack = savedMiniGame.filter { it.isActive }.toMutableList().apply { shuffle() },
+                turnNumber = 1,
+                currentPlayerIndex = 0,
+                isSoundEnabled = currentState.isSoundEnabled,
+                isVibrationEnabled = currentState.isVibrationEnabled
+            )
+        }
+
         advanceGameLoop()
     }
 
@@ -323,6 +356,14 @@ class GameViewModel(application: Application) : AndroidViewModel(application) {
             // Petite pause ou message optionnel ?
             advanceGameLoop()
         }
+    }
+
+    // Fonction utilitaire pour tirer une carte sans impacter le jeu
+    fun drawRandomCardOnly(type: CardType): Card {
+        val list = if (type == CardType.CHANCE) _uiState.value.allChanceCards else _uiState.value.allMiniGameCards
+        // On prend une au hasard parmi les actives
+        return list.filter { it.isActive }.randomOrNull()
+            ?: Card(0, "Aucune carte active !", type)
     }
 
     // =========================================================================

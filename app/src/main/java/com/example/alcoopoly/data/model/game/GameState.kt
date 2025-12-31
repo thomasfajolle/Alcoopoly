@@ -55,5 +55,16 @@ data class GameState(
     val turnNumber: Int = 1
 ) {
     val currentPlayer: Player
-        get() = if (players.isNotEmpty()) players[currentPlayerIndex] else Player(0, "Err", 0)
+        get() = if (players.isNotEmpty() && currentPlayerIndex in players.indices) {
+            players[currentPlayerIndex]
+        } else {
+            // On crée un joueur "Bouchon" avec des valeurs par défaut
+            // pour satisfaire le compilateur
+            Player(
+                id = -1,
+                name = "Chargement...",
+                color = 0xFF808080, // Gris (format Long)
+                avatar = "⏳"
+            )
+        }
 }

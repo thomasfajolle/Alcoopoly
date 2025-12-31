@@ -20,11 +20,15 @@ class CardRepository(context: Context) {
     fun loadChanceCards(): List<Card> {
         val json = prefs.getString(KEY_CHANCE, null)
         return if (json != null) {
-            // Si on a une sauvegarde, on la convertit en liste
-            val type = object : TypeToken<List<Card>>() {}.type
-            gson.fromJson(json, type)
+            try {
+                val type = object : TypeToken<List<Card>>() {}.type
+                gson.fromJson(json, type)
+            } catch (e: Exception) {
+                // Si le JSON est corrompu, on recharge les défauts
+                CardData.initialChanceCards
+            }
         } else {
-            // Sinon, on charge les défauts (fichier CardData)
+            // Premier lancement : on charge les défauts
             CardData.initialChanceCards
         }
     }

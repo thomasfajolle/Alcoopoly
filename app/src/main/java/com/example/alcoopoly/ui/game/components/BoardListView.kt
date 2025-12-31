@@ -39,7 +39,6 @@ fun BoardListView(
 
     // Scroll automatique pour centrer la case active
     LaunchedEffect(activePlayerPosition) {
-        // offset -300 place l'élément vers le milieu/haut de l'écran
         listState.animateScrollToItem(index = activePlayerPosition, scrollOffset = -300)
     }
 
@@ -47,7 +46,7 @@ fun BoardListView(
         state = listState,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 0.dp), // On utilise toute la largeur
+            .padding(horizontal = 0.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp),
         contentPadding = PaddingValues(top = 16.dp, bottom = 100.dp, start = 16.dp, end = 16.dp)
     ) {
@@ -71,25 +70,20 @@ fun BoardCaseCard(
     allPlayers: List<Player>,
     isActive: Boolean
 ) {
-    // --- ANIMATIONS (Focus & Zoom) ---
+    // --- ANIMATIONS ---
     val scale by animateFloatAsState(targetValue = if (isActive) 1.05f else 0.95f, label = "scale")
-    val alpha by animateFloatAsState(targetValue = if (isActive) 1f else 0.7f, label = "alpha") // 0.7 pour garder de la visibilité
+    val alpha by animateFloatAsState(targetValue = if (isActive) 1f else 0.7f, label = "alpha")
     val elevation by animateDpAsState(targetValue = if (isActive) 12.dp else 2.dp, label = "elevation")
 
-    // --- LOGIQUE D'AFFICHAGE ---
+    // --- LOGIQUE PROPRIÉTAIRE ---
     val owner = if (boardCase.ownerId != null) allPlayers.find { it.id == boardCase.ownerId } else null
-    val ownerColor = if (owner != null) Color(owner.color.toInt()) else Color.Transparent
+
+    // CORRECTION 1 : Utiliser toULong() pour éviter les couleurs invisibles
+    val ownerColor = if (owner != null) Color(owner.color.toULong()) else Color.Transparent
     val isOwned = owner != null
 
-    // Distinguer Propriétés vs Cases Spéciales
     val isPropertyCard = boardCase.type == CaseType.PROPRIETE || boardCase.type == CaseType.BAR
-
-    // COULEURS DE FOND
-    // Si propriété : Blanc.
-    // Si spécial : Couleur pastelle spécifique (très lisible)
     val cardBackgroundColor = if (isPropertyCard) Color.White else getSpecialCaseColor(boardCase.type)
-
-    // Bandeau couleur (uniquement pour les propriétés)
     val headerColor = if (isPropertyCard) getFamilyColor(boardCase.familyId) else Color.Transparent
 
     Card(
@@ -100,8 +94,9 @@ fun BoardCaseCard(
                 scaleY = scale
                 this.alpha = alpha
             }
+            // CORRECTION 2 : La bordure doit bien s'afficher maintenant
             .border(
-                width = if (isOwned) 3.dp else 0.dp, // Pas de bordure grise moche, juste bordure proprio si acheté
+                width = if (isOwned) 3.dp else 0.dp,
                 color = if (isOwned) ownerColor else Color.Transparent,
                 shape = RoundedCornerShape(12.dp)
             ),
@@ -110,7 +105,7 @@ fun BoardCaseCard(
         colors = CardDefaults.cardColors(containerColor = cardBackgroundColor)
     ) {
         Column {
-            // Bandeau couleur (Famille) - Uniquement pour Propriétés/Bars
+            // Bandeau couleur (Famille)
             if (isPropertyCard) {
                 Box(
                     modifier = Modifier
@@ -123,7 +118,7 @@ fun BoardCaseCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 16.dp, horizontal = 16.dp), // Padding confortable
+                    .padding(vertical = 16.dp, horizontal = 16.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
 
@@ -135,7 +130,7 @@ fun BoardCaseCard(
                         if (!isPropertyCard && boardCase.type != CaseType.SIMPLE_VISITE) {
                             Text(
                                 text = getCaseTypeEmoji(boardCase.type),
-                                fontSize = 24.sp, // Emoji plus gros
+                                fontSize = 24.sp,
                                 modifier = Modifier.padding(end = 8.dp)
                             )
                         }
@@ -144,33 +139,44 @@ fun BoardCaseCard(
                             text = boardCase.name,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = Color.Black // Noir forcé pour lisibilité max
+                            color = Color.Black
                         )
                     }
 
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    // Ligne Sous-titre (Prix, Proprio, Description)
+                    // --- SOUS-TITRE (PRIX / PROPRIO / DESCRIPTION) ---
                     if (isOwned) {
-                        Text(
-                            text = "Chez ${owner!!.name}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = ownerColor // Couleur du joueur
-                        )
+                        // CORRECTION 3 : Affichage du nom ET du loyer en couleur
+                        Column {
+                            Text(
+                                text = "Chez ${owner!!.name}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = ownerColor // Nom en couleur
+                            )
+                            // Si 'rent' n'existe pas, remplace par 'loyer' ou 'price'
+                            Text(
+                                text = "Loyer : ${boardCase.price} 🍺",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Gray
+                            )
+                        }
                     } else if (boardCase.price > 0) {
+                        // A VENDRE
                         Text(
-                            text = "${boardCase.price} 🍺",
+                            text = "Prix : ${boardCase.price} 🍺",
                             style = MaterialTheme.typography.bodyMedium,
-                            color = Color.DarkGray, // Gris foncé
+                            color = Color.DarkGray,
                             fontWeight = FontWeight.Bold
                         )
                     } else {
-                        // Description case spéciale
+                        // DESCRIPTION SPECIALE
                         Text(
                             text = getCaseDescription(boardCase.type),
                             style = MaterialTheme.typography.bodyMedium,
-                            color = Color.Black.copy(alpha = 0.7f), // Noir légèrement transparent
+                            color = Color.Black.copy(alpha = 0.7f),
                             maxLines = 2
                         )
                     }
@@ -195,34 +201,33 @@ fun PlayerToken(player: Player) {
         modifier = Modifier
             .size(40.dp)
             .clip(CircleShape)
-            .background(Color(player.color.toInt()))
+            // CORRECTION 4 : Couleur du pion corrigée ici aussi
+            .background(Color(player.color.toULong()))
             .border(2.dp, Color.White, CircleShape),
         contentAlignment = Alignment.Center
     ) {
-        // ICI : On affiche l'avatar au lieu de la lettre
         Text(
             text = player.avatar,
-            fontSize = 22.sp // Taille confortable pour un emoji
+            fontSize = 22.sp
         )
     }
 }
 
-// --- COULEURS DES CASES SPÉCIALES (PASTEL) ---
+// --- COULEURS ET UTILITAIRES (INCHANGÉS) ---
 fun getSpecialCaseColor(type: CaseType): Color {
     return when (type) {
-        CaseType.DEPART -> Color(0xFFC8E6C9)       // Vert Pastel (Départ)
-        CaseType.CHANCE -> Color(0xFFFFCC80)       // Orange Pastel (Chance)
-        CaseType.MINI_JEU -> Color(0xFFE1BEE7)     // Violet Pastel (Mini-Jeu)
+        CaseType.DEPART -> Color(0xFFC8E6C9)
+        CaseType.CHANCE -> Color(0xFFFFCC80)
+        CaseType.MINI_JEU -> Color(0xFFE1BEE7)
         CaseType.BASSINE_REMPLIR,
-        CaseType.BASSINE_BOIRE -> Color(0xFFB3E5FC) // Bleu Pastel (Bassine)
-        CaseType.ALLER_PRISON -> Color(0xFFFFCDD2) // Rouge Pastel (Prison)
-        CaseType.SIMPLE_VISITE -> Color(0xFFF5F5F5)// Gris très clair (Visite)
-        CaseType.JARDIN_ENFANT -> Color(0xFFFFF9C4)// Jaune Pastel (Enfant)
+        CaseType.BASSINE_BOIRE -> Color(0xFFB3E5FC)
+        CaseType.ALLER_PRISON -> Color(0xFFFFCDD2)
+        CaseType.SIMPLE_VISITE -> Color(0xFFF5F5F5)
+        CaseType.JARDIN_ENFANT -> Color(0xFFFFF9C4)
         else -> Color.White
     }
 }
 
-// Utilitaires Emoji et Description (Inchangés)
 fun getCaseTypeEmoji(type: CaseType): String {
     return when (type) {
         CaseType.DEPART -> "🚩"

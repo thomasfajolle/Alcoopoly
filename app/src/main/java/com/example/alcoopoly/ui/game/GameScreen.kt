@@ -154,7 +154,8 @@ fun GameScreen(
                     },
                     // Les nouveaux callbacks :
                     onToggleSound = { viewModel.toggleSound() },
-                    onToggleVibration = { viewModel.toggleVibration() }
+                    onToggleVibration = { viewModel.toggleVibration() },
+                    viewModel = viewModel
                 )
             }
 
@@ -232,37 +233,62 @@ fun BoardTabContent(
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
 
-        // --- INFO JOUEUR ---
+        // ===========================================
+        //       ZONE D'INFO (JOUEUR + DÉS)
+        // ===========================================
         Card(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 16.dp)
+                .padding(bottom = 16.dp),
+            elevation = CardDefaults.cardElevation(4.dp)
         ) {
             Row(
                 modifier = Modifier.padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Tour actuel :", style = MaterialTheme.typography.labelSmall)
+                // --- GAUCHE : AVATAR & NOM ---
+                // AJOUT DU MODIFIER .weight(1f) ICI POUR POUSSER LES DÉS À DROITE
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    // 1. L'Avatar (Emoji)
                     Text(
-                        text = gameState.currentPlayer.name,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = Color(gameState.currentPlayer.color.toInt())
+                        text = gameState.currentPlayer.avatar,
+                        style = MaterialTheme.typography.headlineMedium,
+                        modifier = Modifier.padding(end = 12.dp)
                     )
+
+                    // 2. Le Nom et le Tour
+                    Column {
+                        Text(
+                            text = "Tour ${gameState.turnNumber}",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                        Text(
+                            text = gameState.currentPlayer.name,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(gameState.currentPlayer.color.toULong())
+                        )
+                    }
                 }
+
+                // --- DROITE : LES DÉS ---
                 // Affiche le dé si on a un résultat OU si c'est en train de rouler
-                // Zone des Dés
                 if (gameState.diceResult > 0 || gameState.isRolling) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        // DÉ 1 (Utilise DieView avec une taille adaptée, ex: 30.dp ou 40.dp)
+                    // On ajoute un petit espace à gauche pour ne pas coller au nom si le nom est très long
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(start = 8.dp)
+                    ) {
                         DieView(
                             value = gameState.die1,
                             isRolling = gameState.isRolling,
                             size = 40.dp
                         )
-                        // DÉ 2
                         DieView(
                             value = gameState.die2,
                             isRolling = gameState.isRolling,
